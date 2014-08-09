@@ -32,8 +32,8 @@ cmdList :: [(String, Parameters -> Settings -> MaybeT (ErrT IO) Settings)]
 cmdList = [
 	("show", showSettings),
 	("setup", setup),
-	("out", checkOut)
-	--("in", checkIn)
+	("out", checkOut),
+	("in", checkIn)
 	]
 
 execFromCmd :: String -> Parameters -> Settings -> MaybeT (ErrT IO) Settings

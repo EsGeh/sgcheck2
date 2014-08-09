@@ -32,27 +32,23 @@ checkOut params settings = do
 	lift $ uncurry (writeHiddenFile settings) $ (src,dest)
 	return settings
 
-{-
 checkIn :: Parameters -> Settings -> MaybeT (ErrT IO) Settings
 checkIn params settings = do
 	lift $ checkParams settings params
 	lift $ checkRSync
-	(src,dest) <- lift $ inOptionsFromFileName settings (readOrigin) $ file params
+	(src,dest) <- lift $ inOptionsFromFileName settings $ file params
+	lift2 $ putStrLn $ show (src,dest)
 	lift $ uncurry (copyFile inOptions) $ (src,dest)
-	lift $ uncurry (addHiddenFile settings) $ (src,dest)
 	return settings
--}
 
 
 outOptionsFromFileName :: Settings -> FilePath -> (FilePath, FilePath)
 outOptionsFromFileName settings fileName = (serverPath settings </> fileName, thisPath settings </> filename fileName)
 
-{-
-inOptionsFromFileName :: Settings -> (FilePath -> ErrT IO FilePath) -> FilePath -> ErrT IO (FilePath, FilePath)
-inOptionsFromFileName settings calcDestPath fileName = do
-	origin <- calcDestPath settings fileName
-	return (thisPath settings </> fileName, origin)
--}
+inOptionsFromFileName :: Settings -> FilePath -> ErrT IO (FilePath, FilePath)
+inOptionsFromFileName settings fileName = do
+	origin <- loadHiddenFile fileName
+	return (thisPath settings </> fileName, decodeString origin)
 
 {-
 calcDestPath settings filePath = do
@@ -66,16 +62,12 @@ parseSettingsTransform = do
 	return $ case k of
 		"ORIGIN" -> \_ -> Just v
 		_ -> fail "unknown key!"
-{-
-readOrigin :: FilePath -> (String -> ErrT IO String)
-readOrigin filePath = do
-	parse parseKeyValue "" >>= parse (parseTransformations parseSettingsTransform) ""
--}
 
 copyFile :: [String] -> FilePath -> FilePath -> ErrT IO ()
 copyFile options src dest = do
-	lift $ putStrLn $ "executing \'" ++ "rsync" ++ P.unwords (options ++ [encodeString src, encodeString dest]) ++ "\'"
+	lift $ putStrLn $ "executing \'" ++ "rsync " ++ P.unwords (options ++ [encodeString src, encodeString dest]) ++ "\'"
 	processRes <- lift $ readProcessWithExitCode "rsync" (options ++ [encodeString src, encodeString dest]) ""
+	--processRes <- (return (ExitSuccess,undefined,undefined))
 	case processRes of
 		(ExitSuccess, _, _) -> return ()
 		(_, _, _) -> throwE $ "rsync failed!"

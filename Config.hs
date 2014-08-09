@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Config(
 	loadConfig, storeConfig, lookupConfigDir,
-	writeHiddenFile,
+	writeHiddenFile, loadHiddenFile,
 ) where
 
 import Prelude hiding( FilePath )
@@ -11,7 +11,8 @@ import Global
 import System.IO.Error
 import System.Directory
 import System.Environment
-import Data.Text as T
+import qualified Data.Text as T
+import Data.List as L
 
 
 envVarConfigDir = "SGCHECK2_CONFIGPATH"
@@ -49,12 +50,12 @@ lookupConfigDir = do
 		return $ fmap decodeString fromEnv `mplus` Just def) :: IO (Maybe FilePath)
 	ExceptT $ liftM (maybeToEither "not installed correctly") lookup :: ErrT IO FilePath
 
-{-
+-- returns the origin:
 loadHiddenFile :: FilePath -> ErrT IO String
 loadHiddenFile name = do
 	configDir <- lookupConfigDir
-	readFile $ configDir </> name
--}
+	content <- lift $ readFile $ encodeString $ configDir </> name <.> T.pack hiddenFileEnding
+	ExceptT $ return $ maybeToEither "couldn't read hidden file!" $ L.stripPrefix "ORIGIN=" $ L.takeWhile (/='\n') content
 
 writeHiddenFile settings src dest = do
 	configDir <- lookupConfigDir
