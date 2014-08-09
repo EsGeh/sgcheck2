@@ -23,7 +23,6 @@ outOptions = ["-avz"]
 inOptions = ["-avz"]
 
 
-
 checkOut params settings = do
 	lift $ checkParams settings params
 	lift $ checkRSync
@@ -43,7 +42,10 @@ checkIn params settings = do
 
 
 outOptionsFromFileName :: Settings -> FilePath -> (FilePath, FilePath)
-outOptionsFromFileName settings fileName = (serverPath settings </> fileName, thisPath settings </> filename fileName)
+outOptionsFromFileName settings fileName = (src,dest)
+	where
+		src = serverPath settings </> fileName
+		dest = thisPath settings </> filename fileName
 
 inOptionsFromFileName :: Settings -> FilePath -> ErrT IO (FilePath, FilePath)
 inOptionsFromFileName settings fileName = do
@@ -63,10 +65,18 @@ parseSettingsTransform = do
 		"ORIGIN" -> \_ -> Just v
 		_ -> fail "unknown key!"
 
+{-|
+	'copyFile opt "a/x" "b/x"' creates b/x with the same content as a/x
+	a/x can be a file or a directory.
+
+	! WARNING: 'copyFile opt "a/x" "b/y"' creates b/x with the same content as a/x
+	! WARNING: src and dest must not end with "/"
+-}
 copyFile :: [String] -> FilePath -> FilePath -> ErrT IO ()
 copyFile options src dest = do
-	lift $ putStrLn $ "executing \'" ++ "rsync " ++ P.unwords (options ++ [encodeString src, encodeString dest]) ++ "\'"
-	processRes <- lift $ readProcessWithExitCode "rsync" (options ++ [encodeString src, encodeString dest]) ""
+	let rsyncDest = directory $ dest
+	lift $ putStrLn $ "executing \'" ++ "rsync " ++ P.unwords (options ++ [encodeString src, encodeString rsyncDest]) ++ "\'"
+	processRes <- lift $ readProcessWithExitCode "rsync" (options ++ [encodeString src, encodeString rsyncDest]) ""
 	--processRes <- (return (ExitSuccess,undefined,undefined))
 	case processRes of
 		(ExitSuccess, _, _) -> return ()
