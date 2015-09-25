@@ -1,79 +1,61 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Config(
-	loadConfig, storeConfig, lookupConfigDir,
+	loadConfig, storeConfig,
 	writeHiddenFile, loadHiddenFile,
 ) where
 
 import Prelude hiding( FilePath )
 
 import Global
+import Data
 
 import System.IO.Error
-import System.Directory
 import System.Environment
 import qualified Data.Text as T
 import Data.List as L
 
 
-envVarConfigDir = "SGCHECK2_CONFIGPATH"
-defConfigDir = liftM2 (++) getHomeDirectory (return "/.sgcheck2") :: IO String
-
 configPath = "config"
 hiddenFileEnding = "sgcheck2"
 
 
+loadConfig :: Path -> ErrT IO Settings
+loadConfig configDir = do
+	loadSettings $ configDir </> path_fromStr configPath
 
 {- |lookup config dir, store settings
 -}
-storeConfig :: Settings -> ErrT IO ()
-storeConfig settings = do
-	configDir <- lookupConfigDir
-	storeSettings (configDir </> decodeString configPath) settings
+storeConfig :: Path -> Settings -> ErrT IO ()
+storeConfig configDir settings = do
+	storeSettings (configDir </> path_fromStr configPath) settings
 	where
 		storeSettings :: Path -> Settings -> ErrT IO ()
 		storeSettings path settings = do
-			ExceptT $ liftM Right (writeFile (encodeString path) $ settingsToString settings)
+			ExceptT $ liftM Right (writeFile (path_toStr path) $ settingsToString settings)
 				`catchIOError` (\e -> return $ Left "config file not found!")
 
-
-{- |lookup the config dir by trying the following strategies:
-
-  1. read the environment variable "envVarConfigDir"
-	1. use ~/.sgcheck2
-
--}
-lookupConfigDir:: ErrT IO FilePath
-lookupConfigDir = do
-	let lookup = (do
-		fromEnv <- lookupEnv envVarConfigDir
-		def <- defConfigDir >>= return . decodeString
-		return $ fmap decodeString fromEnv `mplus` Just def) :: IO (Maybe FilePath)
-	ExceptT $ liftM (maybeToEither "not installed correctly") lookup :: ErrT IO FilePath
-
 -- returns the origin:
-loadHiddenFile :: FilePath -> ErrT IO String
-loadHiddenFile name = do
-	configDir <- lookupConfigDir
-	content <- lift $ readFile $ encodeString $ configDir </> name <.> T.pack hiddenFileEnding
-	ExceptT $ return $ maybeToEither "couldn't read hidden file!" $ L.stripPrefix "ORIGIN=" $ L.takeWhile (/='\n') content
+loadHiddenFile :: Path -> Path -> ErrT IO Path
+loadHiddenFile configDir name = do
+	content <- lift $ readFile $ path_toStr $ configDir </> name <.> T.pack hiddenFileEnding
+	ExceptT $ return $
+		maybeToEither "couldn't read hidden file!" $
+		liftM path_fromStr $
+		L.stripPrefix "ORIGIN=" $
+		L.takeWhile (/='\n') $
+		content
 
-writeHiddenFile settings src dest = do
-	configDir <- lookupConfigDir
+writeHiddenFile :: Path -> Settings -> Path -> Path -> ErrT IO ()
+writeHiddenFile configDir settings src dest = do
 	lift $
-		writeFile (encodeString $ configDir </> filename src <.> T.pack hiddenFileEnding) $
+		writeFile (path_toStr $ configDir </> filename src <.> T.pack hiddenFileEnding) $
 			hiddenFileContent settings src
 
 
 hiddenFileContent settings src =
-	"ORIGIN=" ++ encodeString src ++ "\n"
+	"ORIGIN=" ++ path_toStr src ++ "\n"
 
-loadConfig :: ErrT IO Settings
-loadConfig = do
-	configDir <- lookupConfigDir
-	loadSettings $ configDir </> decodeString configPath
-
-
-loadSettings :: FilePath -> ErrT IO Settings
+loadSettings :: Path -> ErrT IO Settings
 loadSettings path = do
-	file <- ExceptT $ liftM Right (readFile $ encodeString path) `catchIOError` (\e -> return $ Left "config file not found!")
+	file <- ExceptT $ liftM Right (readFile $ path_toStr path) `catchIOError` (\e -> return $ Left "error while loading: config file not found!")
 	ExceptT $ return $ settingsFromString file

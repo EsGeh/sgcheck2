@@ -1,7 +1,8 @@
 module Programs.InOut where
 
 import Global
-import Config
+import Data
+import qualified Config
 
 import Filesystem.Path
 import Filesystem.Path.CurrentOS
@@ -23,34 +24,34 @@ outOptions = ["-avz"]
 inOptions = ["-avz"]
 
 
-checkOut params settings = do
-	lift $ checkParams settings params
+checkOut file settings memorizeFile = do
+	lift $ checkParams settings file
 	lift $ checkRSync
-	let (src,dest) = outOptionsFromFileName settings $ file params
+	let (src,dest) = outOptionsFromFileName settings $ file
 	lift $ uncurry (copyFile outOptions) $ (src,dest)
-	lift $ uncurry (writeHiddenFile settings) $ (src,dest)
+	lift $ uncurry (memorizeFile settings) $ (src,dest)
 	return settings
 
-checkIn :: Parameters -> Settings -> MaybeT (ErrT IO) Settings
-checkIn params settings = do
-	lift $ checkParams settings params
+--checkIn :: Path -> Settings -> MaybeT (ErrT IO) Settings
+checkIn file settings lookupFile = do
+	lift $ checkParams settings file
 	lift $ checkRSync
-	(src,dest) <- lift $ inOptionsFromFileName settings $ file params
+	(src,dest) <- lift $ inOptionsFromFileName settings file lookupFile
 	lift2 $ putStrLn $ show (src,dest)
 	lift $ uncurry (copyFile inOptions) $ (src,dest)
 	return settings
 
 
-outOptionsFromFileName :: Settings -> FilePath -> (FilePath, FilePath)
+outOptionsFromFileName :: Settings -> Path -> (Path, Path)
 outOptionsFromFileName settings fileName = (src,dest)
 	where
 		src = serverPath settings </> fileName
 		dest = thisPath settings </> filename fileName
 
-inOptionsFromFileName :: Settings -> FilePath -> ErrT IO (FilePath, FilePath)
-inOptionsFromFileName settings fileName = do
-	origin <- loadHiddenFile fileName
-	return (thisPath settings </> fileName, decodeString origin)
+--inOptionsFromFileName :: Settings -> FilePath -> ErrT IO (FilePath, FilePath)
+inOptionsFromFileName settings fileName lookupFile = do
+	origin <- lookupFile fileName
+	return (thisPath settings </> fileName, origin)
 
 {-
 calcDestPath settings filePath = do
@@ -99,12 +100,12 @@ copyFile options settings params = do
 -}
 
 
-checkParams :: Settings -> Parameters -> ErrT IO ()
-checkParams settings params = do
+checkParams :: Settings -> Path -> ErrT IO ()
+checkParams settings file = do
 	exists <- liftM2 (||)
-		(lift $ D.doesFileExist (encodeString $ serverPath settings </> file params))
-		(lift $ D.doesDirectoryExist (encodeString $ serverPath settings </> file params))
-	when (not exists) $ throwE $ "file \'" ++ encodeString (file params) ++ "\' not found!"
+		(lift $ D.doesFileExist (encodeString $ serverPath settings </> file))
+		(lift $ D.doesDirectoryExist (encodeString $ serverPath settings </> file))
+	when (not exists) $ throwE $ "file \'" ++ encodeString file ++ "\' not found!"
 
 checkRSync :: ErrT IO ()
 checkRSync = do

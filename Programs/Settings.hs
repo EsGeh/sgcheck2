@@ -1,15 +1,17 @@
 module Programs.Settings where
 
 import Global
+import Data
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
 
-showSettings _ settings = do
+showSettings settings = do
 	lift2 $ putStrLn $ settingsToString settings
 	MaybeT $ return Nothing
 
+{-
 setup params settings = do
 	lift2 $ putStrLn $ settingsToString settings
 	lift2 $ putStr "> "
@@ -19,3 +21,4 @@ setup params settings = do
 		_ -> do
 			changeSettingsFunc <- lift $ ExceptT $ return $ settingsChangeFromString userInput
 			setup params $ changeSettingsFunc settings
+-}
