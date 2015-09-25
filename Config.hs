@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Config(
+	createConfig, -- this will create the config directory
 	loadConfig, storeConfig,
 	writeHiddenFile, loadHiddenFile,
 ) where
@@ -11,6 +12,7 @@ import Data
 
 import System.IO.Error
 import System.Environment
+import System.Directory
 import qualified Data.Text as T
 import Data.List as L
 
@@ -23,6 +25,12 @@ loadConfig :: Path -> ErrT IO Settings
 loadConfig configDir = do
 	loadSettings $ configDir </> path_fromStr configPath
 
+createConfig :: Path -> ErrT IO ()
+createConfig configDir = do
+	ExceptT $
+		liftM Right (createDirectoryIfMissing True $ path_toStr configDir)
+		`catchIOError` (\e -> return $ Left $ L.concat $ ["error creating config dir at \"", path_toStr configDir, "\": ", show e])
+
 {- |lookup config dir, store settings
 -}
 storeConfig :: Path -> Settings -> ErrT IO ()
@@ -32,7 +40,7 @@ storeConfig configDir settings = do
 		storeSettings :: Path -> Settings -> ErrT IO ()
 		storeSettings path settings = do
 			ExceptT $ liftM Right (writeFile (path_toStr path) $ settingsToString settings)
-				`catchIOError` (\e -> return $ Left "config file not found!")
+				`catchIOError` (\e -> return $ Left $ L.concat $ ["error writing config to \"", path_toStr path, "\": ", show e])
 
 -- returns the origin:
 loadHiddenFile :: Path -> Path -> ErrT IO Path

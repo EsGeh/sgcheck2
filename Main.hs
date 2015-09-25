@@ -29,16 +29,15 @@ execProgram :: ErrT IO ()
 execProgram = do
 	allData <-
 		userInputFromCmdArgs =<< lift getArgs
-	--lift $ print allData
 	let
 		cmdArgs = data_programInput allData
 		storeSettings = data_storeSettings allData
-	newSettings <-
+	maybeNewSettings <-
 		runMaybeT $ execFromCmd cmdArgs
 	maybe
-		(storeSettings $ cmdArgs_settings $ data_programInput $ allData)
+		(return ())
 		storeSettings
-		newSettings
+		maybeNewSettings
 
 execFromCmd :: CommandArgs -> MaybeT (ErrT IO) Settings
 execFromCmd cmdArgs =
@@ -54,9 +53,8 @@ execFromCmd cmdArgs =
 			CmdIn file ->
 				checkIn file settings lookupFile
 			CmdListFiles ->
-				undefined
+				lift $ throwE $ "not yet implemented!"
 			CmdShowConfig ->
 				showSettings settings
 			CmdWriteConfig ->
-				MaybeT $ return Nothing
-			--ListFiles -> undefined
+				return $ settings
