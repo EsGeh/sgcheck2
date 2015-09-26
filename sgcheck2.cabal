@@ -19,7 +19,7 @@ executable sgcheck2
   main-is:             Main.hs
   -- other-modules:       
   other-extensions:    FlexibleContexts
-  ghc-options: -fno-warn-tabs
+  ghc-options: -Wall -fno-warn-tabs
   build-depends:
     base ==4.8.*,
     mtl,

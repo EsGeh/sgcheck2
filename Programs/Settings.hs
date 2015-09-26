@@ -1,14 +1,15 @@
 module Programs.Settings where
 
+import Data.Settings
 import Global
-import Data
+--import Data
 
-import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
 
+showSettings :: Settings -> MaybeT (ErrT IO) Settings
 showSettings settings = do
-	lift2 $ putStrLn $ settingsToString settings
+	lift2 $ putStrLn $ settings_toStr settings
 	MaybeT $ return Nothing
 
 {-

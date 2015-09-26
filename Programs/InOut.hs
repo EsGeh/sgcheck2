@@ -1,8 +1,9 @@
 module Programs.InOut where
 
-import Global
 import Data
-import qualified Config
+import Global
+--import Data
+--import qualified Config
 
 import Filesystem.Path
 import Filesystem.Path.CurrentOS
@@ -11,8 +12,6 @@ import qualified System.Directory as D
 import System.Process
 import System.Exit
 
-import Data.Text as T
-import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
 import Text.Parsec
@@ -20,10 +19,13 @@ import Text.Parsec
 
 import Prelude as P hiding( FilePath )
 
+outOptions :: [String]
 outOptions = ["-avz"]
+inOptions :: [String]
 inOptions = ["-avz"]
 
 
+checkOut :: Path -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
 checkOut file settings memorizeFile = do
 	lift $ checkParams settings file
 	lift $ checkRSync
@@ -32,7 +34,7 @@ checkOut file settings memorizeFile = do
 	lift $ uncurry (memorizeFile settings) $ (src,dest)
 	return settings
 
---checkIn :: Path -> Settings -> MaybeT (ErrT IO) Settings
+checkIn :: Path -> Settings -> LookupFile -> MaybeT (ErrT IO) Settings
 checkIn file settings lookupFile = do
 	lift $ checkParams settings file
 	lift $ checkRSync
@@ -48,16 +50,10 @@ outOptionsFromFileName settings fileName = (src,dest)
 		src = serverPath settings </> fileName
 		dest = thisPath settings </> filename fileName
 
---inOptionsFromFileName :: Settings -> FilePath -> ErrT IO (FilePath, FilePath)
+inOptionsFromFileName :: Settings -> FilePath -> LookupFile -> ErrT IO (FilePath, FilePath)
 inOptionsFromFileName settings fileName lookupFile = do
-	origin <- lookupFile fileName
-	return (thisPath settings </> fileName, origin)
-
-{-
-calcDestPath settings filePath = do
-	str <- loadHiddenFile
-	return filePath
--}
+	entry <- lookupFile fileName
+	return (thisPath settings </> fileName, entry_path entry)
 
 parseSettingsTransform :: Parsec [(String,String)] () (Maybe String -> Maybe String)
 parseSettingsTransform = do
@@ -82,6 +78,7 @@ copyFile options src dest = do
 	case processRes of
 		(ExitSuccess, _, _) -> return ()
 		(_, _, _) -> throwE $ "rsync failed!"
+	
 {-
 copyFile :: [String] -> Settings -> Parameters -> ErrT IO ()
 copyFile options settings params = do
@@ -115,4 +112,4 @@ checkRSync = do
 		(_, _, _) -> throwE $ "rsync not installed!"
 
 
-concatPath l r = l ++ "/" ++ r
+-- concatPath l r = l ++ "/" ++ r
