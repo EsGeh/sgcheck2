@@ -57,7 +57,6 @@ execProgram = do
 									=<<
 										(lift $ Persistence.fs_list fileSys)
 								MaybeT $ return $ Nothing
-							--lift $ throwE $ "not yet implemented!"
 						CmdShowConfig ->
 							showSettings settings
 						CmdWriteConfig ->

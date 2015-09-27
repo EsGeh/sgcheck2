@@ -24,25 +24,43 @@ outOptions = ["-avz"]
 inOptions :: [String]
 inOptions = ["-avz"]
 
+checkOut :: CopyCommandParams -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
+checkOut copyCmdParams settings memorizeFile =
+	let
+		file = copyCmd_file copyCmdParams
+		flags = copyCmd_flags copyCmdParams
+		options = (["-avz"]++) $
+			map snd $
+			filter (\(cond, _) -> cond flags) $
+			[ (copyFlags_simulate, "-n")
+			]
+	in
+		do
+			lift $ checkParams settings file
+			lift $ checkRSync
+			let (src,dest) = outOptionsFromFileName settings $ file
+			lift $ uncurry (copyFile (copyFlags_printCommand flags) options) $ (src,dest)
+			lift $ uncurry (memorizeFile settings) $ (src,dest)
+			return settings
 
-checkOut :: Path -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
-checkOut file settings memorizeFile = do
-	lift $ checkParams settings file
-	lift $ checkRSync
-	let (src,dest) = outOptionsFromFileName settings $ file
-	lift $ uncurry (copyFile outOptions) $ (src,dest)
-	lift $ uncurry (memorizeFile settings) $ (src,dest)
-	return settings
-
-checkIn :: Path -> Settings -> LookupFile -> MaybeT (ErrT IO) Settings
-checkIn file settings lookupFile = do
-	lift $ checkParams settings file
-	lift $ checkRSync
-	(src,dest) <- lift $ inOptionsFromFileName settings file lookupFile
-	lift2 $ putStrLn $ show (src,dest)
-	lift $ uncurry (copyFile inOptions) $ (src,dest)
-	return settings
-
+checkIn :: CopyCommandParams -> Settings -> LookupFile -> MaybeT (ErrT IO) Settings
+checkIn copyCmdParams settings lookupFile =
+	let
+		file = copyCmd_file copyCmdParams
+		flags = copyCmd_flags copyCmdParams
+		options = (["-avz"] ++) $
+			map snd $
+			filter (\(cond, _) -> cond flags) $
+			[ (copyFlags_simulate, "-n")
+			]
+	in
+		do
+			lift $ checkParams settings file
+			lift $ checkRSync
+			(src,dest) <- lift $ inOptionsFromFileName settings file lookupFile
+			lift2 $ putStrLn $ show (src,dest)
+			lift $ uncurry (copyFile (copyFlags_printCommand flags) options) $ (src,dest)
+			return settings
 
 outOptionsFromFileName :: Settings -> Path -> (Path, Path)
 outOptionsFromFileName settings fileName = (src,dest)
@@ -69,15 +87,23 @@ parseSettingsTransform = do
 	! WARNING: 'copyFile opt "a/x" "b/y"' creates b/x with the same content as a/x
 	! WARNING: src and dest must not end with "/"
 -}
-copyFile :: [String] -> FilePath -> FilePath -> ErrT IO ()
-copyFile options src dest = do
-	let rsyncDest = directory $ dest
-	lift $ putStrLn $ "executing \'" ++ "rsync " ++ P.unwords (options ++ [encodeString src, encodeString rsyncDest]) ++ "\'"
-	processRes <- lift $ readProcessWithExitCode "rsync" (options ++ [encodeString src, encodeString rsyncDest]) ""
-	--processRes <- (return (ExitSuccess,undefined,undefined))
-	case processRes of
-		(ExitSuccess, _, _) -> return ()
-		(_, _, _) -> throwE $ "rsync failed!"
+copyFile :: Bool -> [String] -> FilePath -> FilePath -> ErrT IO ()
+copyFile printCmd options src dest =
+	let
+		rsyncDest = directory $ dest
+		rsyncArgs =
+			(options ++ [encodeString src, encodeString rsyncDest])
+		rsyncCmd =
+			"rsync " ++ P.unwords rsyncArgs
+	in
+		do
+			when printCmd $
+				lift $ putStrLn $ "executing \'" ++ rsyncCmd ++ "\'"
+			processRes <- lift $ readProcessWithExitCode "rsync" rsyncArgs ""
+			--processRes <- (return (ExitSuccess,undefined,undefined))
+			case processRes of
+				(ExitSuccess, _, _) -> return ()
+				(_, _, _) -> throwE $ "rsync failed!"
 	
 {-
 copyFile :: [String] -> Settings -> Parameters -> ErrT IO ()
