@@ -3,7 +3,7 @@ module Main where
 import UserInput
 import Data
 import qualified Persistence
-import Programs.InOut
+import qualified Programs.InOut as Programs
 import Programs.Settings
 import Global
 
@@ -48,41 +48,13 @@ execProgram = do
 					runMaybeT $
 					case cmd of
 						CmdOut file ->
-							checkOut file settings (Persistence.fs_memorizeFile fileSys)
+							Programs.checkOut file settings (Persistence.fs_memorizeFile fileSys)
 						CmdIn file ->
-							checkIn file settings (Persistence.fs_lookupFile fileSys)
-						CmdListFiles ->
-							do
-								(lift . lift . putStrLn . unlines . map entry_toText)
-									=<<
-										(lift $ Persistence.fs_list fileSys)
-								MaybeT $ return $ Nothing
+							Programs.checkIn file settings (Persistence.fs_lookupFile fileSys)
+						CmdListFiles listArgs ->
+							Programs.list settings listArgs
+								(Persistence.fs_list fileSys)
 						CmdShowConfig ->
 							showSettings settings
 						CmdWriteConfig ->
 							return $ settings
-
-{-
-execProgram :: ErrT IO ()
-execProgram = do
-	allData <-
-		userInputFromCmdArgs =<< lift getArgs
-	let
-		cmdArgs = data_programInput allData
-		storeSettings = data_storeSettings allData
-	maybeNewSettings <-
-		runMaybeT $ execFromCmd cmdArgs
-	maybe
-		(return ())
-		storeSettings
-		maybeNewSettings
-
-execFromCmd :: CommandArgs -> MaybeT (ErrT IO) Settings
-execFromCmd cmdArgs =
-	let
-		cmd = cmdArgs_cmd $ cmdArgs
-		settings = cmdArgs_settings $ cmdArgs
-		memorizeFile = cmdArgs_memorizeFile $ cmdArgs
-		lookupFile = cmdArgs_lookupFile $ cmdArgs
-	in
--}

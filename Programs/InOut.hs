@@ -2,8 +2,6 @@ module Programs.InOut where
 
 import Data
 import Global
---import Data
---import qualified Config
 
 import Filesystem.Path
 import Filesystem.Path.CurrentOS
@@ -15,21 +13,24 @@ import System.Exit
 import Control.Monad.Trans.Maybe
 
 import Text.Parsec
+import Data.Char
 
 
 import Prelude as P hiding( FilePath )
 
+{-
 outOptions :: [String]
 outOptions = ["-avz"]
 inOptions :: [String]
 inOptions = ["-avz"]
+-}
 
 checkOut :: CopyCommandParams -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
 checkOut copyCmdParams settings memorizeFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-avz"]++) $
+		options = (["-azv"]++) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -37,9 +38,31 @@ checkOut copyCmdParams settings memorizeFile =
 	in
 		do
 			lift $ checkParams settings file
-			lift $ checkRSync
+			-- lift $ checkRSync
+			let
+				cmdParams :: CopyFileParams
+				cmdParams =
+					uncurry (copyParams options) $
+					(outOptionsFromFileName settings $ file :: (Path, Path))
+			when (copyFlags_printCommand flags) $
+				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
+			cmdRet <- runExceptT $ execCmd $ copyParams_cmd cmdParams
+			case cmdRet of
+				Left (_, stdOut, stdErr) ->
+					lift $ throwE $ unlines $
+						[ "rsync failed!"
+						, "rsync stdout:", stdOut
+						, "rsync stderr:", stdErr
+						]
+				Right stdOut ->
+					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+			{-
 			let (src,dest) = outOptionsFromFileName settings $ file
 			lift $ uncurry (copyFile (copyFlags_printCommand flags) options) $ (src,dest)
+			-}
+			let
+				src = copyParams_src cmdParams
+				dest = copyParams_dest cmdParams
 			lift $ uncurry (memorizeFile settings) $ (src,dest)
 			return settings
 
@@ -48,7 +71,7 @@ checkIn copyCmdParams settings lookupFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-avz"] ++) $
+		options = (["-azv"] ++) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -56,22 +79,104 @@ checkIn copyCmdParams settings lookupFile =
 	in
 		do
 			lift $ checkParams settings file
-			lift $ checkRSync
-			(src,dest) <- lift $ inOptionsFromFileName settings file lookupFile
-			lift2 $ putStrLn $ show (src,dest)
-			lift $ uncurry (copyFile (copyFlags_printCommand flags) options) $ (src,dest)
-			return settings
+			-- lift $ checkRSync
+			--cmdParams :: CopyFileParams
+			cmdParams <- lift $
+				liftM (
+					uncurry (copyParams options)
+					. inOptionsFromFileName settings
+					. pathFromEntry
+				) $
+				lookupFile file
+			when (copyFlags_printCommand flags) $
+				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
+			cmdRet <- runExceptT $ execCmd $ copyParams_cmd cmdParams
+			case cmdRet of
+				Left (_, stdOut, stdErr) ->
+					lift $ throwE $ unlines $
+						[ "rsync failed!"
+						, "rsync stdout:", stdOut
+						, "rsync stderr:", stdErr
+						]
+				Right stdOut ->
+					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+			MaybeT $ return Nothing
 
+list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
+list settings listParams listEntries =
+	do
+		lift $
+			mapM_ (lift . putStrLn <=< catch . (infoFromEntry settings listParams)) =<< listEntries
+		MaybeT $ return $ Nothing
+	where
+		catch x =
+			x `catchE` \(_, stdOut, stdErr) ->
+				throwE $ unlines $
+						[ "rsync failed!"
+						, "rsync stdout:", stdOut
+						, "rsync stderr:", stdErr
+						]
+
+infoFromEntry ::
+	MonadIO m =>
+	Settings -> ListParams -> Entry
+	-> ExceptT (ExitCode,String,String) m String
+infoFromEntry settings listParams entry =
+	let
+		flags = ["-az", "-i", "-n"]
+		file = pathFromEntry entry
+		cmdParams =
+			uncurry (copyParams flags) $
+			inOptionsFromFileName settings $
+			file
+	in
+		fmap calcOutput $ execCmd $ copyParams_cmd cmdParams
+		where
+			calcOutput rsyncOut =
+				unwords $
+				map toOutput $ listParams_entry listParams
+				where
+					toOutput x =
+						let
+							trimmedRSyncOut = trim isSpace rsyncOut
+						in
+							case x of
+								Str s -> s
+								Path -> path_toStr $ pathFromEntry entry
+								Changed (Mark str) ->
+									if trimmedRSyncOut == ""
+									then ""
+									else str
+								Changed (RSyncOut f) ->
+									let
+										concStr = rsyncF_interperseLines f
+									in
+										foldl (\a b-> a ++ concStr ++ b) "" $
+										lines $
+										trimmedRSyncOut
+								_ -> "not yet implemented"
+
+trim cond = f . f
+	where
+		f = reverse . dropWhile cond
+
+-- filename relative to 'serverPath settings'
 outOptionsFromFileName :: Settings -> Path -> (Path, Path)
-outOptionsFromFileName settings fileName = (src,dest)
+outOptionsFromFileName settings fileName =
+	(src,dest)
 	where
 		src = serverPath settings </> fileName
 		dest = thisPath settings </> filename fileName
 
-inOptionsFromFileName :: Settings -> FilePath -> LookupFile -> ErrT IO (FilePath, FilePath)
-inOptionsFromFileName settings fileName lookupFile = do
-	entry <- lookupFile fileName
-	return (thisPath settings </> fileName, entry_path entry)
+pathFromEntry = filename . entry_path
+
+-- filename relative to 'thisPath settings'
+inOptionsFromFileName :: Settings -> Path -> (FilePath, FilePath)
+inOptionsFromFileName settings fileName =
+	(src, dest)
+	where
+		src = thisPath settings </> fileName
+		dest = serverPath settings </> fileName -- entry_path entry
 
 parseSettingsTransform :: Parsec [(String,String)] () (Maybe String -> Maybe String)
 parseSettingsTransform = do
@@ -80,47 +185,50 @@ parseSettingsTransform = do
 		"ORIGIN" -> \_ -> Just v
 		_ -> fail "unknown key!"
 
+
+data CopyFileParams
+	= CopyFileParams {
+		copyParams_cmd :: (String, [String]),
+		copyParams_fullCommand :: String,
+		copyParams_src :: Path,
+		copyParams_dest :: Path,
+		copyParams_options :: [String]
+	}
+
 {-|
-	'copyFile opt "a/x" "b/x"' creates b/x with the same content as a/x
+	'copyParams opt "a/x" "b/x"' creates b/x with the same content as a/x
 	a/x can be a file or a directory.
 
 	! WARNING: 'copyFile opt "a/x" "b/y"' creates b/x with the same content as a/x
 	! WARNING: src and dest must not end with "/"
 -}
-copyFile :: Bool -> [String] -> FilePath -> FilePath -> ErrT IO ()
-copyFile printCmd options src dest =
+copyParams :: [String] -> Path -> Path -> CopyFileParams
+copyParams options src dest =
 	let
 		rsyncDest = directory $ dest
 		rsyncArgs =
 			(options ++ [encodeString src, encodeString rsyncDest])
 		rsyncCmd =
-			"rsync " ++ P.unwords rsyncArgs
+			("rsync", rsyncArgs)
 	in
-		do
-			when printCmd $
-				lift $ putStrLn $ "executing \'" ++ rsyncCmd ++ "\'"
-			processRes <- lift $ readProcessWithExitCode "rsync" rsyncArgs ""
-			--processRes <- (return (ExitSuccess,undefined,undefined))
-			case processRes of
-				(ExitSuccess, _, _) -> return ()
-				(_, _, _) -> throwE $ "rsync failed!"
-	
-{-
-copyFile :: [String] -> Settings -> Parameters -> ErrT IO ()
-copyFile options settings params = do
-	lift $ putStrLn $ "executing \'" ++ "rsync" ++ P.unwords (options ++ [srcFile, destFile]) ++ "\'"
-	processRes <- lift $ readProcessWithExitCode "rsync" (options ++ [srcFile, destFile]) ""
-	case processRes of
-		(ExitSuccess, _, _) -> return ()
-		(_, _, _) -> throwE $ "rsync failed!"
-	where
-		srcFile = encodeString $ server </> fileName
-		destFile = encodeString $ this
+		CopyFileParams {
+			copyParams_cmd = rsyncCmd,
+			copyParams_fullCommand = uncurry showCommandForUser rsyncCmd,
+			copyParams_src = src,
+			copyParams_dest = rsyncDest,
+			copyParams_options = options
+		}
 
-		server = serverPath settings :: FilePath
-		this = thisPath settings :: FilePath
-		fileName = file params :: FilePath
--}
+execCmd :: MonadIO m => (String, [String]) -> ExceptT (ExitCode,String,String) m String
+execCmd (cmd, args) =
+	do
+		(exitCode, stdOut, stdErr) <- liftIO $ readProcessWithExitCode cmd args ""
+		case exitCode of
+			(ExitSuccess) ->
+				return $ stdOut
+			_ ->
+				throwE $ (exitCode, stdOut, stdErr)
+			--(_, _, _) -> throwE $ "rsync failed!"
 
 
 checkParams :: Settings -> Path -> ErrT IO ()
@@ -136,6 +244,3 @@ checkRSync = do
 	case processRes of
 		(ExitSuccess, _, _) -> return ()
 		(_, _, _) -> throwE $ "rsync not installed!"
-
-
--- concatPath l r = l ++ "/" ++ r

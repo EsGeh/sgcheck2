@@ -1,7 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 module UserInput(
 	UserInput(..),
-	Command(..), CommandType(..), HasCommmandType(..),
 	userInputFromCmdArgs
 	) where
 
@@ -15,17 +14,6 @@ import qualified Data.List as List
 
 type HelpOrM a = Maybe a
 
-{-
-optDescr :: CommandType -> [OptDescr (CopyOptions -> HelpOrM CopyOptions)]
-optDescr cmdType =
-	case cmdType of
-		c | c `elem` [Out, In] ->
-			map (fmap $ packCopyFlags) copyOptDescr
-			++
-			map (fmap $ packGeneralOptions) generalOptDescr
-		_ ->
-			map (fmap $ packGeneralOptions) generalOptDescr
--}
 
 userInputFromCmdArgs :: [String] -> ErrT IO UserInput
 userInputFromCmdArgs args =
@@ -39,47 +27,69 @@ userInputFromCmdArgs args =
 					x `catchE` \msg -> throwE $ unlines [ msg, generalHelpInfo ]
 		case cmdType of
 			x | x `elem` [In, Out] ->
-				do
-					(copyOpts, nonOpts) <-
-						case parseOptions defCopyOptions optDescr rest of
-							Nothing -> 
-								throwE $ showHelp cd cmdType generalOptDescr optDescr
-							Just copyOpts' ->
-								copyOpts' `catchE` \msg -> throwE $ unlines [ msg, helpInfo cmdType ]
-					file <- parseFile cmdType nonOpts
-					return $
+				flip (parseToInput cmdType optDescr (defCopyFlags, defGeneralOptions) (parseFile cmdType)) rest $
+					\(copyFlags, generalOpts) file ->
 						UserInput {
 							ui_cmd =
 								(case cmdType of { Out -> CmdOut; In -> CmdIn; _ -> error "" })
 									CopyCommandParams {
 										copyCmd_file = file,
-										copyCmd_flags = opts_copyFlags copyOpts
+										copyCmd_flags = copyFlags
 									},
-							ui_configDir = genOpts_configDir $ opts_general copyOpts
+							ui_configDir = genOpts_configDir $ generalOpts
 						}
 					where
 						optDescr =
-							map (fmap $ packCopyFlags) copyOptDescr
+							map (fmap $ mapToFstM) copyOptDescr
 							++
-							map (fmap $ packGeneralOptions) generalOptDescr
-			_ -> 
-				do
-					(copyOpts, nonOpts) <-
-						case parseOptions defGeneralOptions optDescr rest of
-							Nothing -> 
-								throwE $ showHelp cd cmdType generalOptDescr []
-							Just copyOpts' ->
-								copyOpts' `catchE` \msg -> throwE $ unlines [ msg, helpInfo cmdType ]
-					when (nonOpts /= []) $ throwE $ unlines $ [List.concat ["unexpected argument for ", cmdType_toStr cmdType], helpInfo cmdType]
-					return $
+							map (fmap $ mapToSndM) generalOptDescr
+			ListFiles ->
+				flip (parseToInput cmdType optDescr (defListParams,defGeneralOptions) (parseNoArgs cmdType)) rest $
+					\opts _ ->
 						UserInput {
 							ui_cmd =
-								(case cmdType of { ListFiles -> CmdListFiles; ShowConfig -> CmdShowConfig; WriteConfig -> CmdWriteConfig; _ -> error "" }),
-							ui_configDir = genOpts_configDir $ copyOpts
+								CmdListFiles $
+									fst opts,
+							ui_configDir = genOpts_configDir $ snd opts
 						}
 					where
 						optDescr =
-							generalOptDescr
+							map (fmap $ mapToFstM) listFilesOptDescr
+							++
+							map (fmap $ mapToSndM) generalOptDescr
+			_ -> 
+				flip (parseToInput cmdType optDescr defGeneralOptions (parseNoArgs cmdType)) rest $
+				\opts _ ->
+					UserInput {
+						ui_cmd =
+							(case cmdType of { ShowConfig -> CmdShowConfig; WriteConfig -> CmdWriteConfig; _ -> error "" }),
+						ui_configDir = genOpts_configDir $ opts
+					}
+				where
+					optDescr =
+						generalOptDescr
+
+parseToInput cmdType optDescr defOpts parseArgs calcInput args =
+	do
+		cd <- lift defConfigDir
+		(opts, nonOpts) <-
+			case parseOptions defOpts optDescr args of
+				Nothing -> 
+					throwE $ showHelp cd cmdType optDescr
+				Just copyOpts' ->
+					copyOpts' `catchE` \msg -> throwE $ unlines [ msg, helpInfo cmdType ]
+		params <- parseArgs nonOpts
+		return $
+			calcInput opts params
+
+listFilesOptDescr :: [OptDescr (ListParams -> HelpOrM ListParams)]
+listFilesOptDescr =
+	[
+	]
+{-
+	[ Option [] ["mark-local"] (ReqArg (\str o -> return $ o{ simpleListDescr_markChangedLocally = str}) "MARKER") "do not execute"
+	]
+-}
 
 copyOptDescr :: [OptDescr (CopyFlags -> HelpOrM CopyFlags)]
 copyOptDescr =
@@ -93,6 +103,7 @@ generalOptDescr =
 	, Option ['h'] ["help"] (NoArg (const $ Nothing)) "print help"
 	]
 
+{-
 packCopyFlags :: (CopyFlags -> HelpOrM CopyFlags)
 	-> (CopyOptions -> HelpOrM CopyOptions)
 packCopyFlags g opts =
@@ -105,6 +116,7 @@ packGeneralOptions g opts =
 {-
 	case opts of
 		Copyfmap g opts
+-}
 -}
 
 parseCmd :: Monad m => [String] -> Maybe (ErrT m (CommandType, [String]))
@@ -135,9 +147,16 @@ parseOptions defOptions optDescr args =
 			(_, _, errMsgs) ->
 				Just $ throwE $ unlines errMsgs
 
+parseNoArgs :: Monad m => CommandType -> [String] -> ErrT m ()
+parseNoArgs cmdType args =
+	case args of
+		[] -> return $ ()
+		_ -> 
+			throwE $ List.concat ["wrong parameters for ", cmdType_toStr cmdType]
+
 parseFile :: Monad m => CommandType -> [String] -> ErrT m Path
-parseFile cmdType nonOpts =
-	case nonOpts of
+parseFile cmdType args =
+	case args of
 		[file] -> return $ path_fromStr file
 		_ -> 
 			throwE $ List.concat ["wrong parameters for ", cmdType_toStr cmdType]
@@ -174,13 +193,16 @@ generalHelpStr defConfigDir generalOptDescr =
 	, configHelp defConfigDir
 	]
 
-showHelp :: Path -> CommandType -> [OptDescr a] -> [OptDescr b] -> String
-showHelp defConfigDir cmdType generalOptDescr optDescr =
+showHelp :: Path -> CommandType -> [OptDescr b] -> String
+showHelp defConfigDir cmdType optDescr =
 	unlines $
 	[ syntaxStr cmdType
 	, ""
+	, usageInfo "OPTIONS for this command: " optDescr
+	{-
 	, usageInfo "specific OPTIONS for this command: " optDescr
 	, usageInfo "general OPTIONS: " generalOptDescr
+	-}
 	, ""
 	, configHelp defConfigDir
 	]

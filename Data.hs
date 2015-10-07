@@ -7,10 +7,15 @@ module Data(
 	cmdType_listAll,
 	CopyCommandParams(..),
 	CopyFlags(..), defCopyFlags,
+	ListParams(..), defListParams,
+	Output(..),
+	ChangedInfo(..),
+	RSyncOutFormat(..),
+	--SimpleListDescr(..), defSimpleListDescr,
 	module Data.Entry,
 	module Data.Settings,
 
-	MemorizeFile, LookupFile,
+	MemorizeFile, LookupFile, ListEntries,
 ) where
 
 
@@ -24,7 +29,7 @@ import Data.Tuple( swap )
 data Command
 	= CmdOut CopyCommandParams
 	| CmdIn CopyCommandParams
-	| CmdListFiles -- ListParams
+	| CmdListFiles ListParams
 	| CmdShowConfig
 	| CmdWriteConfig
 	deriving( Show )
@@ -48,7 +53,7 @@ instance HasCommmandType Command where
 		case cmd of
 			CmdOut _ -> Out
 			CmdIn _ -> In
-			CmdListFiles -> ListFiles
+			CmdListFiles _ -> ListFiles
 			CmdShowConfig -> ShowConfig
 			CmdWriteConfig -> WriteConfig
 
@@ -82,27 +87,41 @@ defCopyFlags =
 	}
 
 
-{-
-type ListFlags = Either SimpleDescr TableDescr
+data ListParams
+	= ListParams {
+		listParams_entry :: EntryDescr,
+		listParams_subEntry :: Maybe EntryDescr
+	}
+	deriving( Show )
 
-data SimpleDescr
-	= SimpleDescr {
-		simpleDescr_markChangedAtOrigin :: String
-		simpleDescr_markChangedLocally :: String
+type EntryDescr = [Output]
+
+defListParams =
+	ListParams {
+		listParams_entry = [Path, Changed $ RSyncOut defRSyncOutF],
+		listParams_subEntry = Nothing
 	}
 
-newtype TableDescr
-	= TableDescr {
-		--tableDescr_filter :: [FilterType]
-		tableDescr_table :: [ColumnType]
-	}
+data Output
+	= Str String
+	| Path
+	| ThisPath
+	| ServerPath
+	| Changed ChangedInfo
+	deriving( Show )
 
-data ColumnType
-	= ColOriginPath
-	| ColLocalPath
-	| ColChangedOnServer
-	| ColChangedLocally
--}
+data ChangedInfo
+	= Mark String
+	| RSyncOut RSyncOutFormat
+	deriving( Show )
+
+data RSyncOutFormat
+	= RSyncOutFormat {
+		rsyncF_interperseLines :: String
+	}
+	deriving( Show )
+
+defRSyncOutF = RSyncOutFormat "\n\t"
 
 type MemorizeFile =
 	Settings
@@ -112,6 +131,9 @@ type MemorizeFile =
 
 type LookupFile =
 	Path -> ErrT IO Entry
+
+type ListEntries =
+	ErrT IO [Entry]
 
 cmdList :: [(String, CommandType)]
 cmdList =

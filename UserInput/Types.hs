@@ -4,7 +4,6 @@ module UserInput.Types where
 import Data
 import Global
 
-import Control.Monad.Identity
 
 data UserInput
 	= UserInput {
@@ -22,7 +21,6 @@ data Options
 	| ShowConfigOptions GeneralOptions
 	| WriteConfgOptions GeneralOptions
 	deriving( Show )
--}
 
 data CopyOptions
 	= CopyOptions {
@@ -44,6 +42,7 @@ copyOpts_mapToGeneralM f x =
 	do
 		new <- f $ opts_general x
 		return $ x{ opts_general = new }
+-}
 
 data GeneralOptions =
 	GeneralOptions {
