@@ -137,53 +137,44 @@ infoFromEntry settings listParams entry =
 	in
 		do
 			-- liftIO $ putStrLn $ "in" ++ show checkInParams
-			--liftIO $ putStrLn $ "out" ++ show checkOutParams
+			-- liftIO $ putStrLn $ "out" ++ show checkOutParams
 			inRes <- execCmd $ copyParams_cmd checkInParams
 			outRes <- execCmd $ copyParams_cmd checkOutParams
 			return $ calcOutput inRes outRes
 		where
 			calcOutput inRes outRes =
 				unwords $
-				map toOutput $ listParams_entry listParams
+				map toOutput $ listParams
 				where
+					toOutput :: Output -> String
 					toOutput x =
 						let
 							trimmedInRes = trim isSpace inRes
 							trimmedOutRes = trim isSpace outRes
 						in
 							case x of
-								Str s -> s
-								Path -> path_toStr $ pathFromEntry entry
-								Changed (Mark info) ->
-									if trimmedInRes == ""
-									then ""
-									else markInfo_this info
-									++
-									if trimmedOutRes == ""
-									then ""
-									else markInfo_server info
-								Changed (RSyncOut f) ->
-									if trimmedInRes == ""
-									then ""
-									else
-										let
-											concStr = rsyncF_interperseLines f
-										in
-											foldl (\a b-> a ++ concStr ++ b) "" $
-											lines $
-											trimmedInRes
-									++ 
-									if trimmedOutRes == ""
-									then ""
-									else
-										let
-											concStr = rsyncF_interperseLines f
-										in
-											("on server" ++) $
-											foldl (\a b-> a ++ concStr ++ b) "" $
-											lines $
-											trimmedOutRes
-								_ -> "not yet implemented"
+								SimpleOutput info -> simpleInfo info
+								IfChangedOnThis l ->
+									if trimmedInRes == "" then ""
+									else changeInfo trimmedInRes l
+								IfChangedOnServer l ->
+									if trimmedOutRes == "" then ""
+									else changeInfo trimmedOutRes l
+							where
+								simpleInfo info=
+									case info of
+										Str s -> s
+										Path -> path_toStr $ pathFromEntry entry
+										_ -> "not yet implemented"
+								changeInfo rsyncRet =
+									P.concat .
+									map (either simpleInfo (flip rsyncInfo rsyncRet))
+								rsyncInfo f =
+									let
+										concStr = rsyncF_interperseLines f
+									in
+										foldl1 (\a b-> a ++ concStr ++ b)
+										. lines
 
 trim cond = f . f
 	where

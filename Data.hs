@@ -7,10 +7,14 @@ module Data(
 	cmdType_listAll,
 	CopyCommandParams(..),
 	CopyFlags(..), defCopyFlags,
-	ListParams(..),
-		defListParamsMarkChanged, defListParamsMarkChangedWithMarker, defListParamsRSyncOut,
+	ListParams,
+		defListParamsMarkChanged,
+		defListParamsMarkChangedWithMarker,
+		defListParamsRSyncOut,
+		--defListParamsMarkChanged, defListParamsMarkChangedWithMarker, defListParamsRSyncOut,
 	Output(..),
-	ChangedInfo(..), MarkInfo(..),
+	SimpleOutputInfo(..),
+	--ChangedInfo(..), MarkInfo(..),
 	RSyncOutFormat(..),
 	--SimpleListDescr(..), defSimpleListDescr,
 	module Data.Entry,
@@ -88,53 +92,39 @@ defCopyFlags =
 		copyFlags_printCommand = False
 	}
 
+type ListParams = [Output]
 
-data ListParams
-	= ListParams {
-		listParams_entry :: EntryDescr,
-		listParams_subEntry :: Maybe EntryDescr
-	}
-	deriving( Show )
+defListParamsMarkChanged = defListParamsMarkChangedWithMarker "*" "!"
 
-listParams_mapToEntry f = runIdentity . listParams_mapToEntryM (return . f)
-listParams_mapToEntryM f x = do
-	new <- f $ listParams_entry x
-	return $ x{ listParams_entry = new }
-
-type EntryDescr = [Output]
-
-defListParamsMarkChanged = defListParamsMarkChangedWithMarker $ MarkInfo "*" "!"
-
-defListParamsMarkChangedWithMarker marker =
-	ListParams {
-		listParams_entry = [Path, Changed $ Mark marker],
-		listParams_subEntry = Nothing
-	}
+defListParamsMarkChangedWithMarker this server =
+	[ SimpleOutput $ Path
+	, IfChangedOnThis $ [Left $ Str this]
+	, IfChangedOnServer $ [Left $ Str server]
+	]
 
 defListParamsRSyncOut =
-	ListParams {
-		listParams_entry = [Path, Changed $ RSyncOut defRSyncOutF],
-		listParams_subEntry = Nothing
-	}
+	[ SimpleOutput $ Path
+	, IfChangedOnThis $
+		[ Left $ Str "\n\t"
+		, Right $ defRSyncOutF
+		]
+	, IfChangedOnServer $
+		[ Left $ Str "\n\t-- these files have changed on the server! --\n\t"
+		, Right $ defRSyncOutF
+		]
+	]
 
 data Output
+	= SimpleOutput SimpleOutputInfo
+	| IfChangedOnThis [Either SimpleOutputInfo RSyncOutFormat]
+	| IfChangedOnServer [Either SimpleOutputInfo RSyncOutFormat]
+	deriving( Show )
+
+data SimpleOutputInfo
 	= Str String
 	| Path
 	| ThisPath
 	| ServerPath
-	| Changed ChangedInfo
-	deriving( Show )
-
-data ChangedInfo
-	= Mark MarkInfo
-	| RSyncOut RSyncOutFormat
-	deriving( Show )
-
-data MarkInfo
-	= MarkInfo {
-		markInfo_this :: String,
-		markInfo_server :: String
-	}
 	deriving( Show )
 
 data RSyncOutFormat

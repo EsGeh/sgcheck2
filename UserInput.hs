@@ -84,11 +84,11 @@ parseToInput cmdType optDescr defOpts parseArgs calcInput args =
 
 listFilesOptDescr :: [OptDescr (ListParams -> HelpOrM ListParams)]
 listFilesOptDescr =
-	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "asdf"
+	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ uncurry defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "asdf"
 	, Option ['r'] ["output-rsync"] (NoArg (\_ -> return $ defListParamsRSyncOut)) "basdfads"
 	]
 
-markInfoFromStr = uncurry MarkInfo . mapToSnd (drop 1) . span (/=',')
+markInfoFromStr = mapToSnd (drop 1) . span (/=',')
 
 {-
 	[ Option [] ["mark-local"] (ReqArg (\str o -> return $ o{ simpleListDescr_markChangedLocally = str}) "MARKER") "do not execute"
