@@ -30,7 +30,7 @@ checkOut copyCmdParams settings memorizeFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-azv"]++) $
+		options = (["-azv", "-u"]++) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -71,7 +71,7 @@ checkIn copyCmdParams settings lookupFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-azv"] ++) $
+		options = (["-azv", "-u"] ++) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -123,37 +123,66 @@ infoFromEntry ::
 	-> ExceptT (ExitCode,String,String) m String
 infoFromEntry settings listParams entry =
 	let
-		flags = ["-az", "-i", "-n"]
+		flags = ["-az", "-i", "-n", "-u"]
 		file = pathFromEntry entry
-		cmdParams =
+		checkInParams =
 			uncurry (copyParams flags) $
 			inOptionsFromFileName settings $
 			file
+		checkOutParams =
+			uncurry (copyParams $ flags) $
+			--(\(src, dest) -> (src </> path_fromStr "", dest </> file)) $
+			outOptionsFromFileName settings $
+			file
 	in
-		fmap calcOutput $ execCmd $ copyParams_cmd cmdParams
+		do
+			-- liftIO $ putStrLn $ "in" ++ show checkInParams
+			--liftIO $ putStrLn $ "out" ++ show checkOutParams
+			inRes <- execCmd $ copyParams_cmd checkInParams
+			outRes <- execCmd $ copyParams_cmd checkOutParams
+			return $ calcOutput inRes outRes
 		where
-			calcOutput rsyncOut =
+			calcOutput inRes outRes =
 				unwords $
 				map toOutput $ listParams_entry listParams
 				where
 					toOutput x =
 						let
-							trimmedRSyncOut = trim isSpace rsyncOut
+							trimmedInRes = trim isSpace inRes
+							trimmedOutRes = trim isSpace outRes
 						in
 							case x of
 								Str s -> s
 								Path -> path_toStr $ pathFromEntry entry
-								Changed (Mark str) ->
-									if trimmedRSyncOut == ""
+								Changed (Mark info) ->
+									if trimmedInRes == ""
 									then ""
-									else str
+									else markInfo_this info
+									++
+									if trimmedOutRes == ""
+									then ""
+									else markInfo_server info
 								Changed (RSyncOut f) ->
-									let
-										concStr = rsyncF_interperseLines f
-									in
-										foldl (\a b-> a ++ concStr ++ b) "" $
-										lines $
-										trimmedRSyncOut
+									if trimmedInRes == ""
+									then ""
+									else
+										let
+											concStr = rsyncF_interperseLines f
+										in
+											foldl (\a b-> a ++ concStr ++ b) "" $
+											lines $
+											trimmedInRes
+									++ 
+									if trimmedOutRes == ""
+									then ""
+									else
+										let
+											concStr = rsyncF_interperseLines f
+										in
+											("on server" ++) $
+											foldl (\a b-> a ++ concStr ++ b) "" $
+											lines $
+											trimmedOutRes
 								_ -> "not yet implemented"
 
 trim cond = f . f
@@ -194,6 +223,7 @@ data CopyFileParams
 		copyParams_dest :: Path,
 		copyParams_options :: [String]
 	}
+	deriving( Show )
 
 {-|
 	'copyParams opt "a/x" "b/x"' creates b/x with the same content as a/x

@@ -44,7 +44,7 @@ userInputFromCmdArgs args =
 							++
 							map (fmap $ mapToSndM) generalOptDescr
 			ListFiles ->
-				flip (parseToInput cmdType optDescr (defListParams,defGeneralOptions) (parseNoArgs cmdType)) rest $
+				flip (parseToInput cmdType optDescr (defListParamsMarkChanged,defGeneralOptions) (parseNoArgs cmdType)) rest $
 					\opts _ ->
 						UserInput {
 							ui_cmd =
@@ -84,8 +84,12 @@ parseToInput cmdType optDescr defOpts parseArgs calcInput args =
 
 listFilesOptDescr :: [OptDescr (ListParams -> HelpOrM ListParams)]
 listFilesOptDescr =
-	[
+	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "asdf"
+	, Option ['r'] ["output-rsync"] (NoArg (\_ -> return $ defListParamsRSyncOut)) "basdfads"
 	]
+
+markInfoFromStr = uncurry MarkInfo . mapToSnd (drop 1) . span (/=',')
+
 {-
 	[ Option [] ["mark-local"] (ReqArg (\str o -> return $ o{ simpleListDescr_markChangedLocally = str}) "MARKER") "do not execute"
 	]

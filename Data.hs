@@ -7,9 +7,10 @@ module Data(
 	cmdType_listAll,
 	CopyCommandParams(..),
 	CopyFlags(..), defCopyFlags,
-	ListParams(..), defListParams,
+	ListParams(..),
+		defListParamsMarkChanged, defListParamsMarkChangedWithMarker, defListParamsRSyncOut,
 	Output(..),
-	ChangedInfo(..),
+	ChangedInfo(..), MarkInfo(..),
 	RSyncOutFormat(..),
 	--SimpleListDescr(..), defSimpleListDescr,
 	module Data.Entry,
@@ -23,6 +24,7 @@ import Data.Entry
 import Data.Settings
 import Global
 
+import Control.Monad.Identity
 import Data.Tuple( swap )
 
 
@@ -94,9 +96,22 @@ data ListParams
 	}
 	deriving( Show )
 
+listParams_mapToEntry f = runIdentity . listParams_mapToEntryM (return . f)
+listParams_mapToEntryM f x = do
+	new <- f $ listParams_entry x
+	return $ x{ listParams_entry = new }
+
 type EntryDescr = [Output]
 
-defListParams =
+defListParamsMarkChanged = defListParamsMarkChangedWithMarker $ MarkInfo "*" "!"
+
+defListParamsMarkChangedWithMarker marker =
+	ListParams {
+		listParams_entry = [Path, Changed $ Mark marker],
+		listParams_subEntry = Nothing
+	}
+
+defListParamsRSyncOut =
 	ListParams {
 		listParams_entry = [Path, Changed $ RSyncOut defRSyncOutF],
 		listParams_subEntry = Nothing
@@ -111,8 +126,15 @@ data Output
 	deriving( Show )
 
 data ChangedInfo
-	= Mark String
+	= Mark MarkInfo
 	| RSyncOut RSyncOutFormat
+	deriving( Show )
+
+data MarkInfo
+	= MarkInfo {
+		markInfo_this :: String,
+		markInfo_server :: String
+	}
 	deriving( Show )
 
 data RSyncOutFormat
