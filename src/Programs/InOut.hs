@@ -30,7 +30,9 @@ checkOut copyCmdParams settings memorizeFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-azv", "-u"]++) $
+		options =
+			(["-azv", "-u"]++) $
+			(++copyFlags_addRSyncOpts flags) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -46,7 +48,7 @@ checkOut copyCmdParams settings memorizeFile =
 					(outOptionsFromFileName settings $ file :: (Path, Path))
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			cmdRet <- runExceptT $ execCmd $ copyParams_cmd cmdParams
+			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
 			case cmdRet of
 				Left (_, stdOut, stdErr) ->
 					lift $ throwE $ unlines $
@@ -56,10 +58,6 @@ checkOut copyCmdParams settings memorizeFile =
 						]
 				Right stdOut ->
 					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
-			{-
-			let (src,dest) = outOptionsFromFileName settings $ file
-			lift $ uncurry (copyFile (copyFlags_printCommand flags) options) $ (src,dest)
-			-}
 			let
 				src = copyParams_src cmdParams
 				dest = copyParams_dest cmdParams
@@ -71,7 +69,9 @@ checkIn copyCmdParams settings lookupFile =
 	let
 		file = copyCmd_file copyCmdParams
 		flags = copyCmd_flags copyCmdParams
-		options = (["-azv", "-u"] ++) $
+		options =
+			(["-azv", "-u", "--delete"] ++) $
+			(++copyFlags_addRSyncOpts flags) $
 			map snd $
 			filter (\(cond, _) -> cond flags) $
 			[ (copyFlags_simulate, "-n")
@@ -90,7 +90,7 @@ checkIn copyCmdParams settings lookupFile =
 				lookupFile file
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			cmdRet <- runExceptT $ execCmd $ copyParams_cmd cmdParams
+			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
 			case cmdRet of
 				Left (_, stdOut, stdErr) ->
 					lift $ throwE $ unlines $
@@ -138,12 +138,12 @@ infoFromEntry settings listParams entry =
 		do
 			-- liftIO $ putStrLn $ "in" ++ show checkInParams
 			-- liftIO $ putStrLn $ "out" ++ show checkOutParams
-			inRes <- execCmd $ copyParams_cmd checkInParams
-			outRes <- execCmd $ copyParams_cmd checkOutParams
-			return $ calcOutput inRes outRes
+			inRes <- uncurry execCmd $ copyParams_cmd checkInParams
+			outRes <- uncurry execCmd $ copyParams_cmd checkOutParams
+			return $ calcOutput checkInParams inRes outRes
 		where
-			calcOutput inRes outRes =
-				unwords $
+			calcOutput inParams inRes outRes =
+				P.concat $
 				map toOutput $ listParams
 				where
 					toOutput :: Output -> String
@@ -165,7 +165,8 @@ infoFromEntry settings listParams entry =
 									case info of
 										Str s -> s
 										Path -> path_toStr $ pathFromEntry entry
-										_ -> "not yet implemented"
+										ThisPath -> path_toStr $ copyParams_src inParams
+										ServerPath -> path_toStr $ copyParams_dest inParams
 								changeInfo rsyncRet =
 									P.concat .
 									map (either simpleInfo (flip rsyncInfo rsyncRet))
@@ -236,12 +237,12 @@ copyParams options src dest =
 			copyParams_cmd = rsyncCmd,
 			copyParams_fullCommand = uncurry showCommandForUser rsyncCmd,
 			copyParams_src = src,
-			copyParams_dest = rsyncDest,
+			copyParams_dest = dest,
 			copyParams_options = options
 		}
 
-execCmd :: MonadIO m => (String, [String]) -> ExceptT (ExitCode,String,String) m String
-execCmd (cmd, args) =
+execCmd :: MonadIO m => String -> [String] -> ExceptT (ExitCode,String,String) m String
+execCmd cmd args =
 	do
 		(exitCode, stdOut, stdErr) <- liftIO $ readProcessWithExitCode cmd args ""
 		case exitCode of
@@ -249,8 +250,6 @@ execCmd (cmd, args) =
 				return $ stdOut
 			_ ->
 				throwE $ (exitCode, stdOut, stdErr)
-			--(_, _, _) -> throwE $ "rsync failed!"
-
 
 checkParams :: Settings -> Path -> ErrT IO ()
 checkParams settings file = do

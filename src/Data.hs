@@ -7,6 +7,7 @@ module Data(
 	cmdType_listAll,
 	CopyCommandParams(..),
 	CopyFlags(..), defCopyFlags,
+	copyFlags_mapToRSyncOpts, copyFlags_mapToRSyncOptsM,
 	ListParams,
 		defListParamsMarkChanged,
 		defListParamsMarkChangedWithMarker,
@@ -82,15 +83,25 @@ data CopyCommandParams
 data CopyFlags
 	= CopyFlags {
 		copyFlags_simulate :: Bool,
-		copyFlags_printCommand :: Bool
+		copyFlags_printCommand :: Bool,
+		copyFlags_addRSyncOpts :: [String]
 	}
 	deriving( Show )
 
 defCopyFlags =
 	CopyFlags {
 		copyFlags_simulate = False,
-		copyFlags_printCommand = False
+		copyFlags_printCommand = False,
+		copyFlags_addRSyncOpts = []
 	}
+
+copyFlags_mapToRSyncOpts f =
+	runIdentity . copyFlags_mapToRSyncOptsM (return . f)
+
+copyFlags_mapToRSyncOptsM f x =
+	do
+		new <- f (copyFlags_addRSyncOpts x)
+		return $ x{ copyFlags_addRSyncOpts = new }
 
 type ListParams = [Output]
 
@@ -98,6 +109,10 @@ defListParamsMarkChanged = defListParamsMarkChangedWithMarker "*" "!"
 
 defListParamsMarkChangedWithMarker this server =
 	[ SimpleOutput $ Path
+	{-
+	, SimpleOutput $ Str "\t"
+	, SimpleOutput $ ServerPath
+	-}
 	, IfChangedOnThis $ [Left $ Str this]
 	, IfChangedOnServer $ [Left $ Str server]
 	]

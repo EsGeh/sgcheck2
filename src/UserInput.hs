@@ -84,8 +84,13 @@ parseToInput cmdType optDescr defOpts parseArgs calcInput args =
 
 listFilesOptDescr :: [OptDescr (ListParams -> HelpOrM ListParams)]
 listFilesOptDescr =
-	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ uncurry defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "asdf"
-	, Option ['r'] ["output-rsync"] (NoArg (\_ -> return $ defListParamsRSyncOut)) "basdfads"
+	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ uncurry defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "mark files which have changed locally/on the server"
+	, Option ['r'] ["output-rsync"] (NoArg (\_ -> return $ defListParamsRSyncOut)) "append rsync output"
+	, Option ['o'] ["output"] (NoArg (\_ -> return $ [])) "output for each entry will be defined by the following options"
+	, Option [] ["output-string"] (ReqArg (\str -> return . (++ [SimpleOutput $ Str str])) "any string") "add a string to each entry"
+	, Option [] ["output-path"] (NoArg (return . (++ [SimpleOutput $ Path]))) "add the path to each entry"
+	, Option [] ["output-thispath"] (NoArg (return . (++ [SimpleOutput $ ThisPath]))) "add the local path to each entry"
+	, Option [] ["output-serverpath"] (NoArg (return . (++ [SimpleOutput $ ServerPath]))) "add the path on the server to each entry"
 	]
 
 markInfoFromStr = mapToSnd (drop 1) . span (/=',')
@@ -99,6 +104,7 @@ copyOptDescr :: [OptDescr (CopyFlags -> HelpOrM CopyFlags)]
 copyOptDescr =
 	[ Option ['s'] ["simulate"] (NoArg (\o -> return $ o{ copyFlags_simulate = True})) "do not execute"
 	, Option ['p'] ["print-command"] (NoArg (\o -> return $ o{ copyFlags_printCommand = True})) "do not execute"
+	, Option [] ["rsync-opts"] (ReqArg (\str o -> return $ copyFlags_mapToRSyncOpts (++[str]) o) "COPY_OPTIONS") "additional options to the copy command"
 	]
 
 generalOptDescr :: [OptDescr (GeneralOptions -> HelpOrM GeneralOptions)]
@@ -203,10 +209,6 @@ showHelp defConfigDir cmdType optDescr =
 	[ syntaxStr cmdType
 	, ""
 	, usageInfo "OPTIONS for this command: " optDescr
-	{-
-	, usageInfo "specific OPTIONS for this command: " optDescr
-	, usageInfo "general OPTIONS: " generalOptDescr
-	-}
 	, ""
 	, configHelp defConfigDir
 	]
