@@ -1,6 +1,7 @@
 module Data.Settings(
 	Settings(..), defSettings,
 	settings_toStr, settings_fromStr,
+	IP(), ip_fromStr, ip_toStr,
 ) where
 
 import Utils
@@ -10,12 +11,23 @@ import Text.Parsec
 
 -- settings
 data Settings = Settings {
-	serverIP :: Maybe String,
-	thisIP :: Maybe String,
+	serverIP :: Maybe IP,
+	thisIP :: Maybe IP,
 	serverPath :: Path,
 	thisPath :: Path
 }
-	deriving( Show )
+	deriving( Show, Eq )
+
+-- TODO: stronger guaranties:
+newtype IP = IP { fromIP :: String }
+	deriving( Show, Eq, Ord )
+
+ip_fromStr :: String -> Maybe IP
+ip_fromStr x =
+	if x == "" then Nothing else Just $ IP x
+
+ip_toStr :: IP -> String
+ip_toStr = fromIP
 
 defSettings :: Settings
 defSettings = Settings {
@@ -27,8 +39,8 @@ defSettings = Settings {
 
 settings_toStr :: Settings -> String
 settings_toStr settings =
-	"serverIP=" ++ nothingToEmpty (serverIP settings) ++ "\n" ++
-	"thisIP=" ++ nothingToEmpty (thisIP settings) ++ "\n" ++
+	"serverIP=" ++ (nothingToEmpty . fmap ip_toStr . serverIP) settings ++ "\n" ++
+	"thisIP=" ++ (nothingToEmpty . fmap ip_toStr . thisIP) settings ++ "\n" ++
 	"serverPath=" ++ (path_toStr $ serverPath settings) ++ "\n" ++ 
 	"thisPath=" ++ (path_toStr $ thisPath settings) ++ "\n"
 
@@ -50,8 +62,8 @@ parseSettingsTransform :: Parsec [(String,String)] () (Settings -> Settings)
 parseSettingsTransform = do
 	(k,v) <- anyToken
 	return $ case k of
-		"serverIP" -> \def -> def{ serverIP = emptyStrToNothing v }
-		"thisIP" -> \def -> def{ thisIP = emptyStrToNothing v }
+		"serverIP" -> \def -> def{ serverIP = ip_fromStr v }
+		"thisIP" -> \def -> def{ thisIP = ip_fromStr v }
 		"serverPath" -> \def -> def{ serverPath = path_fromStr v }
 		"thisPath" -> \def -> def{ thisPath = path_fromStr v }
 		_ -> fail "unknown key!"

@@ -2,6 +2,8 @@
 module Utils(
 	ErrT, ErrM,
 
+	module Utils.Path,
+
 	lift2,
 	maybeToEither,
 	mapLeft,
@@ -12,23 +14,9 @@ module Utils(
 	module Control.Monad,
 	module Control.Monad.Trans,
 	module Control.Monad.Trans.Except,
-
-	--envVarConfigDir,
-	--defConfigDir,
-	Path,
-	path_toStr, path_fromStr,
-	Path.root,
-	Path.directory,
-	Path.parent,
-	Path.filename,
-	Path.dirname,
-	Path.basename,
-	Path.absolute,
-	Path.relative,
-	Path.extension,
-	Path.dropExtension,
-	(Path.</>), (Path.<.>),
 ) where
+
+import Utils.Path
 
 import Prelude hiding( FilePath )
 
@@ -37,19 +25,9 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Identity
 
-import qualified Filesystem.Path as Path
-import qualified Filesystem.Path.CurrentOS as Path
-
 
 type ErrM a = Except String a
 type ErrT t = ExceptT String t
-
-type Path = Path.FilePath
-
-path_toStr :: Path -> String
-path_toStr = Path.encodeString
-path_fromStr :: String -> Path
-path_fromStr = Path.decodeString
 
 maybeToEither :: l -> Maybe a -> Either l a
 maybeToEither l mayb = case mayb of
