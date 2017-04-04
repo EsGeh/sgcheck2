@@ -6,7 +6,7 @@ module Persistence.Settings(
 
 import Data.Settings
 import Persistence.Global
-import Global
+import Utils
 
 import System.IO.Error
 import System.Directory

@@ -1,27 +1,16 @@
 module Main where
 
 import UserInput
-import Data
+import UserInput.Types
 import qualified Persistence
 import qualified Programs.InOut as Programs
 import Programs.Settings
-import Global
+import Utils
 
 import Control.Monad.Trans.Maybe
 
---import Programs.Settings
-{-
-import Data
-import Programs.InOut
-import Programs.Settings
-
-import Global
-import Args
--}
-
---import Text.Read(readEither)
-import System.Exit
-import System.Environment
+import System.Exit( exitFailure )
+import System.Environment( getArgs )
 
 
 main :: IO ()
@@ -39,7 +28,7 @@ execProgram = do
 	ui <- userInputFromCmdArgs =<< lift getArgs
 	let
 		cmd = ui_cmd ui
-	configDir <- Persistence.calcConfigDir $ ui_configDir ui
+	configDir <- calcConfigDir $ ui_configDir ui
 	if cmd_type cmd == WriteConfig
 		then Persistence.createConfig configDir
 		else

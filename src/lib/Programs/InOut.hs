@@ -1,7 +1,8 @@
 module Programs.InOut where
 
 import Data
-import Global
+import Programs.InOut.Params
+import Utils
 
 import Filesystem.Path
 import Filesystem.Path.CurrentOS
@@ -17,6 +18,19 @@ import Data.Char
 
 
 import Prelude as P hiding( FilePath )
+
+
+type MemorizeFile =
+	Settings
+	-> Path -- src
+	-> Path -- dest
+	-> ErrT IO ()
+
+type LookupFile =
+	Path -> ErrT IO Entry
+
+type ListEntries =
+	ErrT IO [Entry]
 
 {-
 outOptions :: [String]
@@ -177,6 +191,8 @@ infoFromEntry settings listParams entry =
 										foldl1 (\a b-> a ++ concStr ++ b)
 										. lines
 
+-- |trim at the beginning and the end
+trim :: (a -> Bool) -> [a] -> [a]
 trim cond = f . f
 	where
 		f = reverse . dropWhile cond
@@ -189,6 +205,7 @@ outOptionsFromFileName settings fileName =
 		src = serverPath settings </> fileName
 		dest = thisPath settings </> filename fileName
 
+pathFromEntry :: Entry -> Path
 pathFromEntry = filename . entry_path
 
 -- filename relative to 'thisPath settings'

@@ -1,9 +1,8 @@
-module Global(
-	prgName, envVarConfigDir, defConfigDir,
-	ErrT, ErrM, Path,
-	lift2,
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+module Utils(
+	ErrT, ErrM,
 
-	-- * utilities:
+	lift2,
 	maybeToEither,
 	mapLeft,
 	mapToFstM, mapToSndM,
@@ -13,6 +12,10 @@ module Global(
 	module Control.Monad,
 	module Control.Monad.Trans,
 	module Control.Monad.Trans.Except,
+
+	--envVarConfigDir,
+	--defConfigDir,
+	Path,
 	path_toStr, path_fromStr,
 	Path.root,
 	Path.directory,
@@ -25,10 +28,6 @@ module Global(
 	Path.extension,
 	Path.dropExtension,
 	(Path.</>), (Path.<.>),
-	{-
-	module Path
-	module Filesystem.Path.CurrentOS,
-	-}
 ) where
 
 import Prelude hiding( FilePath )
@@ -38,22 +37,9 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Identity
 
-import System.Directory( getHomeDirectory )
 import qualified Filesystem.Path as Path
 import qualified Filesystem.Path.CurrentOS as Path
---import Control.Applicative hiding(many, (<|>))
 
-
-prgName :: String
-prgName = "sgcheck2"
-envVarConfigDir :: String
-envVarConfigDir = "SGCHECK2_CONFIGPATH"
-defConfigDir :: IO Path
-defConfigDir =
-	liftM path_fromStr $
-	liftM2 (++)
-		getHomeDirectory
-		(return "/.sgcheck2")
 
 type ErrM a = Except String a
 type ErrT t = ExceptT String t
@@ -64,12 +50,6 @@ path_toStr :: Path -> String
 path_toStr = Path.encodeString
 path_fromStr :: String -> Path
 path_fromStr = Path.decodeString
-
-{-
-instance Monoid Path where
-	mempty = Path.mempty
-	mappend = Path.append
--}
 
 maybeToEither :: l -> Maybe a -> Either l a
 maybeToEither l mayb = case mayb of

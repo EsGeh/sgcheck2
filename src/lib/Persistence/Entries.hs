@@ -5,7 +5,7 @@ module Persistence.Entries(
 
 import Data.Settings
 import Persistence.Global
-import Global
+import Utils
 
 import System.Directory
 import System.IO.Error

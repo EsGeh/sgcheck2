@@ -1,15 +1,63 @@
 {-# LANGUAGE TupleSections #-}
 module UserInput(
 	UserInput(..),
-	userInputFromCmdArgs
+	userInputFromCmdArgs,
+	calcConfigDir
 	) where
 
-import Data
+import Programs.InOut.Params
 import UserInput.Types
-import Global
+import Utils
 
 import System.Console.GetOpt
 import qualified Data.List as List
+
+import System.Environment( lookupEnv )
+import System.Directory( getHomeDirectory )
+
+
+prgName :: String
+prgName = "sgcheck2"
+
+envVarConfigDir :: String
+envVarConfigDir = "SGCHECK2_CONFIGPATH"
+
+calcConfigDir :: Maybe Path -> ErrT IO Path
+calcConfigDir mPathFromOptions =
+	firstThatWorks $
+		[ maybe (throwE $ "config dir not specified!") return $ mPathFromOptions
+		, lookupConfigDirFromEnv
+		, lift $ defConfigDir
+		]
+	where
+		firstThatWorks :: [ErrT IO a] -> ErrT IO a
+		firstThatWorks =
+			foldl conc (throwE "no strategy to find config dir")
+			where
+				conc a b =
+					do
+						a' <-
+							lift $ runExceptT a
+						case a' of
+							Left _ -> b
+							Right x -> return x
+
+lookupConfigDirFromEnv :: ErrT IO Path
+lookupConfigDirFromEnv =
+	ExceptT $
+	liftM (
+		(maybeToEither "not installed correctly")
+		.
+		fmap path_fromStr
+		) $
+	lookupEnv envVarConfigDir
+
+defConfigDir :: IO Path
+defConfigDir =
+	liftM path_fromStr $
+	liftM2 (++)
+		getHomeDirectory
+		(return "/.sgcheck2")
 
 
 type HelpOrM a = Maybe a
@@ -69,6 +117,14 @@ userInputFromCmdArgs args =
 					optDescr =
 						generalOptDescr
 
+parseToInput ::
+	CommandType
+	-> [OptDescr (options -> HelpOrM options)]
+	-> options
+	-> ([String] -> ExceptT String IO t)
+	-> (options -> t -> r)
+	-> [String]
+	-> ExceptT String IO r
 parseToInput cmdType optDescr defOpts parseArgs calcInput args =
 	do
 		cd <- lift defConfigDir
@@ -93,6 +149,7 @@ listFilesOptDescr =
 	, Option [] ["output-serverpath"] (NoArg (return . (++ [SimpleOutput $ ServerPath]))) "add the path on the server to each entry"
 	]
 
+markInfoFromStr :: String -> (String, String)
 markInfoFromStr = mapToSnd (drop 1) . span (/=',')
 
 {-
@@ -188,11 +245,11 @@ generalHelpInfo =
 	]
 
 generalHelpStr :: Path -> [OptDescr a] -> String
-generalHelpStr defConfigDir generalOptDescr =
+generalHelpStr configDir optDescr =
 	unlines $
 	[ generalSyntaxStr
 	, ""
-	, usageInfo "general OPTIONS: " generalOptDescr
+	, usageInfo "general OPTIONS: " optDescr
 	, concat $ [ "CMD: " ]
 	, unlines $ map ( ("\t"++) . cmdType_toStr) $ cmdType_listAll
 	, ""
@@ -200,17 +257,17 @@ generalHelpStr defConfigDir generalOptDescr =
 		, "\t" ++ (cmdLineInput $ concat [ prgName, " CMD --help"])
 	, "to get help for a specific command"
 	, ""
-	, configHelp defConfigDir
+	, configHelp configDir
 	]
 
 showHelp :: Path -> CommandType -> [OptDescr b] -> String
-showHelp defConfigDir cmdType optDescr =
+showHelp configDir cmdType optDescr =
 	unlines $
 	[ syntaxStr cmdType
 	, ""
 	, usageInfo "OPTIONS for this command: " optDescr
 	, ""
-	, configHelp defConfigDir
+	, configHelp configDir
 	]
 
 generalSyntaxStr :: String
@@ -228,13 +285,13 @@ syntaxStr cmdType =
 	]
 
 configHelp :: Path -> String
-configHelp defConfigDir =
+configHelp configDir =
 	unlines $
 	[ "files:"
 	, "the path of the config dir is determined by trying the following"
 	, "  * use the parameter of the command line option -c|--config-dir, if existent"
 	, "  * use the path of the environment variable $" ++ envVarConfigDir
-	, "  * use the default path \"" ++ path_toStr defConfigDir ++ "\""
+	, "  * use the default path \"" ++ path_toStr configDir ++ "\""
 	, ""
 	, "if the directory doesn't exist, you will get an error. to create the config dir, and write some default config file, use"
 	, "\t" ++  cmdLineInput (concat $ [prgName, " ", cmdType_toStr WriteConfig] )
@@ -242,157 +299,3 @@ configHelp defConfigDir =
 
 cmdLineInput :: String -> String
 cmdLineInput = ("$> "++)
-
-{-
-class CmdDescr cmd opts args where
-	cmdDescr_cmd :: cmd
-	cmd_
--}
-
-{-
-{-
-1. try from options
-2. try from env var
-3. try default config dir
--}
-
-data UserInput
-	= UserInput {
-		ui_cmd :: Command,
-		ui_configDir :: Maybe Path
-	}
-	deriving( Show )
-
-data Command
-	= CmdOut Path
-	| CmdIn Path
-	| CmdListFiles
-	| CmdShowConfig
-	| CmdWriteConfig
-	deriving( Show )
-
-{-
--}
-
-data CommandType
-	= Out
-	| In
-	| ListFiles
-	| ShowConfig
-	| WriteConfig
-	deriving( Eq, Ord, Enum, Bounded, Show )
-
-cmdType_listAll :: [CommandType]
-cmdType_listAll = [(minBound :: CommandType) .. ]
-
-class HasCommmandType a where
-	cmd_type :: a -> CommandType
-
-instance HasCommmandType Command where
-	cmd_type cmd =
-		case cmd of
-			CmdOut _ -> Out
-			CmdIn _ -> In
-			CmdListFiles -> ListFiles
-			CmdShowConfig -> ShowConfig
-			CmdWriteConfig -> WriteConfig
-
-cmdType_fromStr :: String -> Maybe CommandType
-cmdType_fromStr str =
-	lookup str cmdList
-
-cmdType_toStr :: CommandType -> String
-cmdType_toStr c =
-	maybe (error "cmdType_fromStr error!") id $
-	lookup c $ map swap cmdList
-
-
-userInputFromCmdArgs :: [String] -> ErrT IO UserInput
-userInputFromCmdArgs args =
-	do
-		cd <- lift defConfigDir
-		(cmdType, rest) <-
-			case parseCmd args of
-				Nothing ->
-					throwE $ generalHelpStr cd
-				Just x ->
-					x `catchE` \msg -> throwE $ unlines [ msg, generalHelpInfo ]
-		(options, nonOpts) <-
-			case parseOptions cmdType rest of
-				Nothing -> 
-					throwE $ showHelp cd cmdType
-				Just x ->
-					x `catchE` \msg -> throwE $ unlines [ msg, helpInfo cmdType ]
-		cmd <-
-			parseParams cmdType nonOpts
-				`catchE` \msg ->  throwE $ unlines [ msg, helpInfo cmdType ]
-		{-
-		when (cmd_type cmd == PrintHelp) $
-			throwE $ generalHelpStr defConfigDir
-		-}
-		return $ UserInput {
-			ui_cmd = cmd,
-			ui_configDir = opt_configDir options
-		}
-
-parseCmd :: Monad m => [String] -> Maybe (ErrT m (CommandType, [String]))
-parseCmd args =
-	case args of
-		(cmd:_)
-			| cmd `elem` ["-h", "--help"] -> Nothing
-		(cmd:rest) -> 
-			Just $
-				maybe (throwE $ "command " ++ cmd ++ " not found!") (return . (,rest)) $
-				cmdType_fromStr cmd
-		_ ->
-			Just $ throwE $ "command expected"
-
-parseOptions :: Monad m => CommandType -> [String] -> Maybe (ErrT m (Options, [String]))
-parseOptions cmdType args =
-	let optReturn = getOpt RequireOrder (generalOptDescr ++ optDescr cmdType) args
-	in
-		case optReturn of
-			(opts', nonOpts, []) ->
-				let mOpts = foldl (>>=) (return defOptions) opts' :: Maybe Options
-				in
-					case mOpts of
-						Nothing ->
-							Nothing
-						Just opts ->
-							Just $ return $ (opts, nonOpts)
-			(_, _, errMsgs) ->
-				Just $ throwE $ unlines errMsgs
-
-parseParams :: Monad m => CommandType -> [String] -> ErrT m Command
-parseParams cmdType params =
-		case (cmdType, params) of
-			(Out, [param]) ->
-				return $ CmdOut $ path_fromStr param
-			(In, [param]) ->
-				return $ CmdIn $ path_fromStr param
-			(ListFiles, []) ->
-				return $ CmdListFiles
-			(ShowConfig, []) ->
-				return $ CmdShowConfig
-			(WriteConfig, []) ->
-				return $ CmdWriteConfig
-			_ ->
-				throwE $ Data.List.concat ["wrong parameters for ", cmdType_toStr cmdType]
-
-data Options =
-	Options {
-		opt_configDir :: Maybe Path
-	}
-
-defOptions :: Options
-defOptions = Options $ Nothing
-
-optDescr :: CommandType -> [OptDescr (Options -> HelpOrM Options)]
-optDescr _ = []
-
-generalOptDescr :: [OptDescr (Options -> HelpOrM Options)]
-generalOptDescr =
-	[ Option ['c'] ["config"] (ReqArg (\str o -> return $ o{ opt_configDir = Just $ path_fromStr str }) "CONFIG_DIR") "the location of the config dir"
-	, Option ['h'] ["help"] (NoArg (const $ Nothing)) "print help"
-	]
--}

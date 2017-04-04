@@ -4,7 +4,7 @@ module Persistence.Global(
 ) where
 
 import Data
-import Global
+import Utils
 
 
 configPath, hiddenFileEnding :: String

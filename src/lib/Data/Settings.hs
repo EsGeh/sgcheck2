@@ -3,7 +3,7 @@ module Data.Settings(
 	settings_toStr, settings_fromStr,
 ) where
 
-import Global
+import Utils
 
 import Text.Parsec
 

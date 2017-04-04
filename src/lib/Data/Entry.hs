@@ -1,6 +1,6 @@
 module Data.Entry where
 
-import Global
+import Utils
 
 
 data Entry

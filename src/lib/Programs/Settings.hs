@@ -1,7 +1,7 @@
 module Programs.Settings where
 
 import Data.Settings
-import Global
+import Utils
 --import Data
 
 import Control.Monad.Trans.Maybe
