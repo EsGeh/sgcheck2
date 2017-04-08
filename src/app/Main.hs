@@ -33,17 +33,17 @@ execProgram = do
 		then Persistence.createConfig configDir
 		else
 			Persistence.withSettings configDir $ \settings ->
-				Persistence.withFileSys configDir $ \fileSys ->
-					runMaybeT $
-					case cmd of
-						CmdOut file ->
-							Programs.checkOut file settings (Persistence.fs_memorizeFile fileSys)
-						CmdIn file ->
-							Programs.checkIn file settings (Persistence.fs_lookupFile fileSys)
-						CmdListFiles listArgs ->
-							Programs.list settings listArgs
-								(Persistence.fs_list fileSys)
-						CmdShowConfig ->
-							showSettings settings
-						CmdWriteConfig ->
-							return $ settings
+			Persistence.withFileSys configDir $ \fileSys ->
+				runMaybeT $
+				case cmd of
+					CmdOut file ->
+						Programs.checkOut file settings (Persistence.fs_memorizeFile fileSys)
+					CmdIn file ->
+						Programs.checkIn file settings (Persistence.fs_lookupFile fileSys)
+					CmdListFiles listArgs ->
+						Programs.list settings listArgs
+							(Persistence.fs_list fileSys)
+					CmdShowConfig ->
+						showSettings settings
+					CmdWriteConfig ->
+						return $ settings

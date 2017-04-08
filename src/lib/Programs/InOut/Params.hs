@@ -22,7 +22,7 @@ data CopyCommandParams
 		copyCmd_file :: Path,
 		copyCmd_flags :: CopyFlags
 	}
-	deriving( Show )
+	deriving( Show, Eq, Ord )
 
 data CopyFlags
 	= CopyFlags {
@@ -30,7 +30,7 @@ data CopyFlags
 		copyFlags_printCommand :: Bool,
 		copyFlags_addRSyncOpts :: [String]
 	}
-	deriving( Show )
+	deriving( Show, Eq, Ord )
 
 type ListParams = [Output]
 
@@ -38,20 +38,20 @@ data Output
 	= SimpleOutput SimpleOutputInfo
 	| IfChangedOnThis [Either SimpleOutputInfo RSyncOutFormat]
 	| IfChangedOnServer [Either SimpleOutputInfo RSyncOutFormat]
-	deriving( Show )
+	deriving( Show, Eq, Ord )
 
 data SimpleOutputInfo
 	= Str String
 	| Path
 	| ThisPath
 	| ServerPath
-	deriving( Show )
+	deriving( Show, Eq, Ord )
 
 data RSyncOutFormat
 	= RSyncOutFormat {
 		rsyncF_interperseLines :: String
 	}
-	deriving( Show )
+	deriving( Show, Eq, Ord )
 
 defCopyFlags =
 	CopyFlags {

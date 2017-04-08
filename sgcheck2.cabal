@@ -43,6 +43,7 @@ library
       Persistence
       , Programs.InOut
       , Programs.InOut.Params
+      , Programs.InOut.Utils
       , Programs.Settings
       , Utils
       , Utils.Path
@@ -69,6 +70,7 @@ library
       , Persistence.Entries
       , Persistence.Global
       , Persistence.Settings
+      , Programs.InOut.Utils
   }
   other-extensions:    FlexibleContexts
   ghc-options: -Wall -fno-warn-tabs
@@ -89,19 +91,24 @@ test-suite lib-test
   hs-source-dirs: src/test
   main-is: Tasty.hs
   other-modules:
-    DataTest
-    , PersistenceTest
+    Data_Test
+    , Persistence_Test
     , TestUtils
+    , Programs.InOut_Test
+    , Programs.InOut.Utils_Test
   build-depends:
     sgcheck2
     , base >= 4 && < 5
     , tasty
     , tasty-discover
     , tasty-quickcheck
+    , tasty-hspec
     , QuickCheck
+    , hspec
     , tuple
     , temporary
     , directory
+    , transformers
   ghc-options: -fno-warn-tabs
   default-language: Haskell2010
   type: exitcode-stdio-1.0

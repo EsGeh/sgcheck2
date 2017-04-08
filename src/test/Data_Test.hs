@@ -1,4 +1,4 @@
-module DataTest where
+module Data_Test where
 
 import Data.Settings
 import Utils

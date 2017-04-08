@@ -16,7 +16,7 @@ data Settings = Settings {
 	serverPath :: Path,
 	thisPath :: Path
 }
-	deriving( Show, Eq )
+	deriving( Show, Eq, Ord )
 
 -- TODO: stronger guaranties:
 newtype IP = IP { fromIP :: String }
