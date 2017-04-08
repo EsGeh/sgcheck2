@@ -14,6 +14,7 @@ import qualified Data.List as List
 
 import System.Environment( lookupEnv )
 import System.Directory( getHomeDirectory )
+import Data.Foldable( asum )
 
 
 prgName :: String
@@ -22,25 +23,21 @@ prgName = "sgcheck2"
 envVarConfigDir :: String
 envVarConfigDir = "SGCHECK2_CONFIGPATH"
 
+defConfigDir :: IO Path
+defConfigDir =
+	liftM path_fromStr $
+	liftM2 (++)
+		getHomeDirectory
+		(return "/.sgcheck2")
+
+
 calcConfigDir :: Maybe Path -> ErrT IO Path
 calcConfigDir mPathFromOptions =
-	firstThatWorks $
-		[ maybe (throwE $ "config dir not specified!") return $ mPathFromOptions
-		, lookupConfigDirFromEnv
-		, lift $ defConfigDir
-		]
-	where
-		firstThatWorks :: [ErrT IO a] -> ErrT IO a
-		firstThatWorks =
-			foldl conc (throwE "no strategy to find config dir")
-			where
-				conc a b =
-					do
-						a' <-
-							lift $ runExceptT a
-						case a' of
-							Left _ -> b
-							Right x -> return x
+	asum $ -- choose first strategy that works:
+	[ maybe (throwE $ "config dir not specified!") return $ mPathFromOptions
+	, lookupConfigDirFromEnv
+	, lift $ defConfigDir
+	]
 
 lookupConfigDirFromEnv :: ErrT IO Path
 lookupConfigDirFromEnv =
@@ -51,13 +48,6 @@ lookupConfigDirFromEnv =
 		fmap path_fromStr
 		) $
 	lookupEnv envVarConfigDir
-
-defConfigDir :: IO Path
-defConfigDir =
-	liftM path_fromStr $
-	liftM2 (++)
-		getHomeDirectory
-		(return "/.sgcheck2")
 
 
 type HelpOrM a = Maybe a

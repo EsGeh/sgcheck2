@@ -19,7 +19,7 @@ Flag test {
   Default: False
 }
 
-executable sgcheck
+executable sgcheck2
   hs-source-dirs: src/app
   main-is: Main.hs
   other-modules:       
