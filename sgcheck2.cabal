@@ -94,7 +94,9 @@ test-suite lib-test
     Data_Test
     , Persistence_Test
     , TestUtils
+    , TestUtils.Dir
     , Programs.InOut_Test
+    , Programs.TestUtils
     , Programs.InOut.Utils_Test
   build-depends:
     sgcheck2
@@ -108,7 +110,12 @@ test-suite lib-test
     , tuple
     , temporary
     , directory
+    --, filesystem-trees
+    , directory-tree
+    -- , rosezipper
+    , containers
     , transformers
+    , mtl
   ghc-options: -fno-warn-tabs
   default-language: Haskell2010
   type: exitcode-stdio-1.0

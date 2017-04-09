@@ -39,14 +39,14 @@ checkOut copyCmdParams settings memorizeFile =
 			]
 	in
 		do
-			lift $ checkParams settings file
-			-- lift $ checkRSync
 			let
 				cmdParams :: CopyFileParams
 				cmdParams =
 					outParams settings options $ file
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
+			lift $ checkParams settings file
+			-- lift $ checkRSync
 			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
 			case cmdRet of
 				Left (_, stdOut, stdErr) ->
@@ -77,7 +77,7 @@ checkIn copyCmdParams settings lookupFile =
 			]
 	in
 		do
-			lift $ checkParams settings file
+			--lift $ checkParams settings file
 			-- lift $ checkRSync
 			--cmdParams :: CopyFileParams
 			cmdParams <- lift $

@@ -1,9 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LambdaCase #-}
-module TestUtils where
+module TestUtils(
+	module TestUtils,
+	--module Dir,
+) where
 
 import Data.Settings
 import Utils
+import qualified TestUtils.Dir as Dir
 
 import Test.Tasty.QuickCheck
 import Test.QuickCheck.Monadic
@@ -20,17 +24,7 @@ import Control.Exception( catch, bracket )
 tempDirTemplate = "sgcheck2_configDir"
 
 
-{-
--- withTempDir :: Int
-withTempDir f =
-	withSystemTempDirectory tempDirTemplate $ \configDir -> f $ path_fromStr configDir
--}
-
---withTempDir :: MonadIO m => (m a -> IO a) -> (Path -> m a) -> m a
--- withTempDir runMonad f =
-
 withTempDir :: MonadIO m => (Path -> m a) -> m a
---withTempDir :: (Path -> IO a) -> IO a
 withTempDir f =
 	(liftIO getTemporaryDirectory) >>= \tempDir ->
 		do
