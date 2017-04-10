@@ -4,6 +4,8 @@ module Programs.InOut.Utils_Test where
 
 import Programs.InOut.Utils
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 import Data.Settings
 import TestUtils
 
@@ -16,18 +18,18 @@ import Data.List( intercalate )
 
 prop_outParams options path =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	(not $ path_isEmpty path) ==>
+	(not $ Path.path_isEmpty path) ==>
 		let
 			CopyFileParams{..} = outParams settings options path
 			dest = 
-				thisPath settings </> filename path
+				thisPath settings </> Path.filename path
 		in
 			copyParams_cmd ===
 				("rsync"
 				, options ++ [
-					path_toStr $ serverPath settings </> path,
-					path_toStr $
-						directory $ dest
+					Path.path_toStr $ serverPath settings </> path,
+					Path.path_toStr $
+						Path.directory $ dest
 				])
 			{-
 			.&&.
@@ -41,18 +43,18 @@ prop_outParams options path =
 
 prop_inParams options path =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	(not $ path_isEmpty path) ==>
+	(not $ Path.path_isEmpty path) ==>
 		let
 			CopyFileParams{..} = inParams settings options path
 			dest = 
-				serverPath settings </> filename path
+				serverPath settings </> Path.filename path
 		in
 			copyParams_cmd ===
 				("rsync"
 				, options ++ [
-					path_toStr $ thisPath settings </> path,
-					path_toStr $
-						directory $ dest
+					Path.path_toStr $ thisPath settings </> path,
+					Path.path_toStr $
+						Path.directory $ dest
 				])
 			{-
 			.&&.
@@ -68,5 +70,5 @@ prop_inParams options path =
 -- prop_dirAndFilename =
 	forAll (getNonEmptyPath <$> arbitrary) $ \dir ->
 	forAll (getNonEmptyPath <$> arbitrary) $ \path ->
-	(directory $ dir </> filename path) === dir </> path_fromStr ""
+	(directory $ dir </> filename path) === dir </> Path.path_fromStr ""
 -}

@@ -2,11 +2,14 @@
 {-# LANGUAGE LambdaCase #-}
 module TestUtils(
 	module TestUtils,
+	--Path, (</>), (<.>),
 	--module Dir,
 ) where
 
 import Data.Settings
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 import qualified TestUtils.Dir as Dir
 
 import Test.Tasty.QuickCheck
@@ -29,14 +32,14 @@ withTempDir f =
 	(liftIO getTemporaryDirectory) >>= \tempDir ->
 		do
 			path <- liftIO (createTempDirectory tempDir tempDirTemplate)
-			ret <- f (path_fromStr path)
+			ret <- f (Path.path_fromStr path)
 			liftIO $ ignoringIOErrors $ removeDirectoryRecursive path
 			return $ ret
 	{-
 	bracket
 		(createTempDirectory tempDir tempDirTemplate)
     (ignoringIOErrors . removeDirectoryRecursive)
-		(f . path_fromStr)
+		(f . Path.path_fromStr)
 	-}
 	where
 		ignoringIOErrors = (`catch` (\e -> const (return ()) (e :: IOError)))
@@ -67,13 +70,13 @@ newtype NonEmptyPath = NonEmptyPath{ getNonEmptyPath :: Path } deriving( Show, E
 
 instance Arbitrary NonEmptyPath where
 	arbitrary =
-		NonEmptyPath <$> arbitrary `suchThat` (not . path_isEmpty)
+		NonEmptyPath <$> arbitrary `suchThat` (not . Path.path_isEmpty)
 
 instance Arbitrary Path where
 	arbitrary =
-		path_fromStr <$>
+		Path.path_fromStr <$>
 		genValidPathString
-		-- path_fromStr <$> arbitrary
+		-- Path.path_fromStr <$> arbitrary
 
 instance Arbitrary IP where
 	arbitrary =
@@ -97,6 +100,6 @@ genValidPathString =
 	(listOf $ arbitrary `suchThat` isAlphaNum)
 
 {-
-path_noNewlines =
+Path.path_noNewlines =
 	takeWhile (/='\n') <$> arbitrary
 -}

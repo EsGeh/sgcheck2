@@ -1,7 +1,13 @@
-module Data.Entry where
+module Data.Entry(
+	Entry(..),
+	entry_toText,
+) where
 
-import Utils
+--import Utils
+import qualified Utils.Path as Path
 
+
+type Path = Path.Path
 
 data Entry
 	= Entry {
@@ -17,4 +23,4 @@ data SyncInfo
 	deriving( Show )
 
 entry_toText :: Entry -> String
-entry_toText = path_toStr . entry_path
+entry_toText = Path.path_toStr . entry_path

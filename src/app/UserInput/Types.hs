@@ -3,6 +3,7 @@ module UserInput.Types where
 
 import Programs.InOut.Params
 import Utils
+import Utils.Path
 import Data.Tuple( swap )
 
 

@@ -10,6 +10,9 @@ import qualified Persistence.Settings as Settings
 import qualified Persistence.Entries as Entries
 import Data.Settings
 import Utils
+import qualified Utils.Path as Path
+
+type Path = Path.Path
 
 
 withSettings :: Path -> (Settings -> ErrT IO (Maybe Settings)) -> ErrT IO ()

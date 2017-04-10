@@ -5,6 +5,8 @@ import Persistence.Settings
 import Data.Entry
 import Data.Settings
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 import TestUtils
 
 import Test.QuickCheck
@@ -24,8 +26,8 @@ prop_testStoreEntry settings path =
 	withTempDir $ \configDir ->
 		do
 			run $ catchExceptions $ writeHiddenFile configDir settings path undefined
-			dirContent <- run $ listDirectory (path_toStr configDir)
-			assert $ dirContent == [ path_toStr path ++ ".sgcheck2" ]
+			dirContent <- run $ listDirectory (Path.path_toStr configDir)
+			assert $ dirContent == [ Path.path_toStr path ++ ".sgcheck2" ]
 
 prop_testEntryPersistence settings path =
 	monadicIO $
@@ -45,7 +47,7 @@ prop_testStoreSettings settings =
 	withTempDir $ \configDir ->
 		do
 			run $ catchExceptions $ storeSettings configDir settings
-			dirContent <- run $ listDirectory (path_toStr configDir)
+			dirContent <- run $ listDirectory (Path.path_toStr configDir)
 			assert $ dirContent == [ "config" ]
 
 prop_testSettingsPersist settings =
@@ -69,7 +71,7 @@ prop_createConfig =
 			run $ catchExceptions $ createConfig configDir
 
 			-- correct directory structure?
-			dirContent <- run $ listDirectory (path_toStr configDir)
+			dirContent <- run $ listDirectory (Path.path_toStr configDir)
 			assert $ dirContent == [ "config" ]
 
 			-- empty settings created?

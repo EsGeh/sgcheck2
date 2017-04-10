@@ -2,8 +2,6 @@
 module Utils(
 	ErrT, ErrM,
 
-	module Utils.Path,
-
 	lift2,
 	maybeToEither,
 	mapLeft,
@@ -15,8 +13,6 @@ module Utils(
 	module Control.Monad.Trans,
 	module Control.Monad.Trans.Except,
 ) where
-
-import Utils.Path
 
 import Prelude hiding( FilePath )
 

@@ -12,14 +12,15 @@ module Programs.InOut.Params(
 	RSyncOutFormat(..),
 ) where
 
-import Utils
+--import Utils
+import qualified Utils.Path as Path
 
 import Control.Monad.Identity
 
 
 data CopyCommandParams
 	= CopyCommandParams {
-		copyCmd_file :: Path,
+		copyCmd_file :: Path.Path,
 		copyCmd_flags :: CopyFlags
 	}
 	deriving( Show, Eq, Ord )

@@ -17,6 +17,8 @@ import Data.Entry
 import Data.Settings
 -}
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 import TestUtils
 import qualified TestUtils.Dir as Dir
 
@@ -117,8 +119,8 @@ prop_list_doesntChangeFS =
 		withTestScenario scenario $ \tempDir ->
 		do
 			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			--maybeErr <- simulateList tempDir scenario
-			--run $ maybe (return ()) (putStrLn) $ maybeErr
+			maybeErr <- simulateList tempDir scenario
+			run $ maybe (return ()) (putStrLn) $ maybeErr
 			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			--run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd

@@ -14,13 +14,18 @@ module Programs.InOut.Utils(
 import Data
 import Utils
 
-import Filesystem.Path.CurrentOS
+--import Filesystem.Path.CurrentOS
+import qualified Utils.Path as Path
 import qualified System.Directory as D
 
 import System.Process
 import System.Exit
 
 import Prelude as P hiding( FilePath )
+
+type Path = Path.Path
+(</>) = (Path.</>)
+(<.>) = (Path.<.>)
 
 
 outParams :: Settings -> [String] -> Path -> CopyFileParams
@@ -39,7 +44,7 @@ outOptionsFromFileName settings fileName =
 	(src,dest)
 	where
 		src = serverPath settings </> fileName
-		dest = thisPath settings </> filename fileName
+		dest = thisPath settings </> Path.filename fileName
 
 -- filename relative to 'thisPath settings'
 inOptionsFromFileName :: Settings -> Path -> (Path, Path)
@@ -50,7 +55,15 @@ inOptionsFromFileName settings fileName =
 		dest = serverPath settings </> fileName -- entry_path entry
 
 pathFromEntry :: Entry -> Path
-pathFromEntry = filename . entry_path
+pathFromEntry =
+	Path.filename . entry_path -- TODO: appears to be wrong!!
+{-
+ 	-- strip path to the server:
+	Path.concat .
+	drop 1 .
+	Path.splitDirectories .
+	entry_path
+-}
 
 data CopyFileParams
 	= CopyFileParams {
@@ -72,9 +85,9 @@ data CopyFileParams
 copyParams :: [String] -> Path -> Path -> CopyFileParams
 copyParams options src dest =
 	let
-		rsyncDest = directory $ dest
+		rsyncDest = Path.directory $ dest
 		rsyncArgs =
-			(options ++ [path_toStr src, path_toStr rsyncDest])
+			(options ++ [Path.path_toStr src, Path.path_toStr rsyncDest])
 		rsyncCmd =
 			("rsync", rsyncArgs)
 	in
@@ -99,9 +112,9 @@ execCmd cmd args =
 checkParams :: Settings -> Path -> ErrT IO ()
 checkParams settings file = do
 	exists <- liftM2 (||)
-		(lift $ D.doesFileExist (encodeString $ serverPath settings </> file))
-		(lift $ D.doesDirectoryExist (encodeString $ serverPath settings </> file))
-	when (not exists) $ throwE $ "file \'" ++ encodeString file ++ "\' not found!"
+		(lift $ D.doesFileExist (Path.path_toStr $ serverPath settings </> file))
+		(lift $ D.doesDirectoryExist (Path.path_toStr $ serverPath settings </> file))
+	when (not exists) $ throwE $ "file \'" ++ Path.path_toStr file ++ "\' not found!"
 
 {-
 checkRSync :: ErrT IO ()

@@ -2,6 +2,8 @@ module Data_Test where
 
 import Data.Settings
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 import TestUtils
 
 import Test.Tasty
@@ -20,13 +22,13 @@ import Data.Maybe
 prop_assertPathsAreValid str =
 	monadicIO $
 	do
-		pre (path_isValid (path_fromStr str))
-		let path = path_fromStr str
-		pre $ relative $ path_fromStr str
+		pre (Path.path_isValid (Path.path_fromStr str))
+		let path = Path.path_fromStr str
+		pre $ Path.relative $ Path.path_fromStr str
 
 		-- make shure we can create a file in this dir:
 		run $ withTempDir $ \dir ->
-			createDirectoryIfMissing True $ path_toStr $
+			createDirectoryIfMissing True $ Path.path_toStr $
 				dir </> path
 
 ---------------------------------

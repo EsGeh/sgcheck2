@@ -4,6 +4,8 @@ import Data
 import Programs.InOut.Params
 import Programs.InOut.Utils
 import Utils
+import Utils.Path as Path( Path, (</>), (<.>) )
+import qualified Utils.Path as Path
 
 import System.Exit
 
@@ -43,6 +45,8 @@ checkOut copyCmdParams settings memorizeFile =
 				cmdParams :: CopyFileParams
 				cmdParams =
 					outParams settings options $ file
+			liftIO $ putStrLn $ "file: " ++ show file
+			liftIO $ putStrLn $ "params: " ++ show cmdParams
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
 			lift $ checkParams settings file
@@ -83,6 +87,8 @@ checkIn copyCmdParams settings lookupFile =
 			cmdParams <- lift $
 				fmap (inParams settings options . pathFromEntry) $
 				lookupFile file
+			liftIO $ putStrLn $ "file: " ++ show file
+			liftIO $ putStrLn $ "params: " ++ show cmdParams
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
 			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
@@ -158,9 +164,9 @@ renderOutput entry cpyInParams inRes outRes x =
 			simpleInfo info=
 				case info of
 					Str s -> s
-					Path -> path_toStr $ pathFromEntry entry
-					ThisPath -> path_toStr $ copyParams_src cpyInParams
-					ServerPath -> path_toStr $ copyParams_dest cpyInParams
+					Path -> Path.path_toStr $ pathFromEntry entry
+					ThisPath -> Path.path_toStr $ copyParams_src cpyInParams
+					ServerPath -> Path.path_toStr $ copyParams_dest cpyInParams
 			changeInfo rsyncRet =
 				P.concat .
 				map (either simpleInfo (flip rsyncInfo rsyncRet))

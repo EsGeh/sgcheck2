@@ -5,6 +5,9 @@ module Persistence.Global(
 
 import Data
 import Utils
+import Utils.Path
+
+--type Path = Path.Path
 
 
 configPath, hiddenFileEnding :: String
