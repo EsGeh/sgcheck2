@@ -9,8 +9,6 @@ import Programs.InOut
 import Programs.InOut.Params
 import Data.Settings
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 import TestUtils
 import qualified TestUtils.Dir as Dir
 
@@ -25,6 +23,11 @@ import Data.Maybe
 import Data.Tuple.Curry( uncurryN )
 
 import Data.Foldable
+
+{-
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+-}
 
 
 -- a directory structure for testing:
@@ -44,7 +47,7 @@ isValidTestScenario TestScenario{..} =
 	in
 		and $
 		[
-			all (not . Path.path_isEmpty) $ [origin_name, this_name, configDir]
+			all (not . null) $ [origin_name, this_name, configDir]
 			, distinct [origin_name, this_name, configDir]
 		]
 
@@ -68,11 +71,12 @@ genScenario managedFilesCanBeEmpty =
 		this_nonManagedFiles <- arbitrary
 
 		configDir <-
-			(getNonEmptyPath <$> arbitrary)
+			(getValidPath <$> arbitrary)
 			--`suchThat` (\path -> path/=(Dir.dir_name origin) && path/=(Dir.dir_name this_nonManagedFiles))
 
 		(managedFileOrigins :: [Dir.PosInDir]) <-
 			(if not managedFilesCanBeEmpty then (`suchThat` (not . null)) else id) $
+				--fmap (map $ Dir.pos_up $ Dir.dir_name origin) $
 				sublistOf $
 				Dir.allSubPositions $
 				origin
@@ -122,20 +126,25 @@ withTestScenario scenario f =
 				Dir.writeDir tempDir origin
 				Dir.writeDir tempDir this
 				let configDirTree =
-					Dir.dirDir (Path.path_toStr configDir) $
+					Dir.dirDir configDir $
 					mapMaybe maybeCreateConfigFile $
 					--map (\dest -> Dir.dirFile (configFilenameFromDest dest) (configContentFromDest dest)) $
 					configFiles
 				Dir.writeDir tempDir configDirTree
-		maybeCreateConfigFile :: Dir.PosInDir -> Maybe Dir.DirDescr
-		maybeCreateConfigFile dest =
-			do
-				dest_name <- (Path.path_toStr <$> Dir.pos_getFilename dest)
-				let configFilename = dest_name ++ ".sgcheck2"
-				let configContent =
-					"ORIGIN=" ++ (Path.path_toStr $ Dir.pos_getFullPath dest)
-				return $
-					Dir.dirFile configFilename configContent
+			where
+				maybeCreateConfigFile :: Dir.PosInDir -> Maybe Dir.DirDescr
+				maybeCreateConfigFile dest =
+					do
+						dest_name <- (Dir.pos_getFilename dest)
+						let configFilename = dest_name ++ ".sgcheck2"
+						let configContent =
+							Dir.pos_getFullPath $
+							(Dir.pos_up $ tempDir) $
+							(Dir.pos_up $ Dir.dir_name origin) $
+							dest
+							-- "ORIGIN=" ++ (Dir.pos_getFullPath dest)
+						return $
+							Dir.dirFile configFilename configContent
 
 distinct [] = True
 distinct (x:xs) = ((/=x) `all` xs) && distinct xs
@@ -143,12 +152,12 @@ distinct (x:xs) = ((/=x) `all` xs) && distinct xs
 instance Arbitrary Dir.DirDescr where
 	arbitrary =
 		resize 5 $
-		sized $ arbTree (getNonEmptyPath <$> arbitrary)
+		sized $ arbTree (getValidPath <$> arbitrary)
 
 arbTree :: Gen Path -> Int -> Gen Dir.DirDescr
 arbTree fileNameGen 0 =
 	Dir.dirFile <$>
-		(Path.path_toStr <$> fileNameGen) <*>
+		fileNameGen <*>
 		pure "a"
 			--arbitrary
 arbTree fileNameGen size =
@@ -158,7 +167,7 @@ arbTree fileNameGen size =
 		let childrenSize = size `div` (subNodeCount + 1)
 		f <- replicateM subNodeCount (arbTree fileNameGen childrenSize)
 		name <- fileNameGen
-		return $ Dir.dirDir (Path.path_toStr name) f
+		return $ Dir.dirDir name f
 
 instance Arbitrary CopyCommandParams where
 	arbitrary =

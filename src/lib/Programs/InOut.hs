@@ -1,17 +1,21 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Programs.InOut where
 
 import Data
 import Programs.InOut.Params
 import Programs.InOut.Utils
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 
 import System.Exit
 
 import Control.Monad.Trans.Maybe
 import Data.Char
 import Prelude as P hiding( FilePath )
+
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
+type Path = Path.FilePath
 
 
 type MemorizeFile =
@@ -49,7 +53,7 @@ checkOut copyCmdParams settings memorizeFile =
 			liftIO $ putStrLn $ "params: " ++ show cmdParams
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			lift $ checkParams settings file
+			lift $ ioSanityCheckParams settings file
 			-- lift $ checkRSync
 			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
 			case cmdRet of
@@ -81,14 +85,13 @@ checkIn copyCmdParams settings lookupFile =
 			]
 	in
 		do
-			--lift $ checkParams settings file
+			lift $ ioSanityCheckParams settings file
 			-- lift $ checkRSync
-			--cmdParams :: CopyFileParams
-			cmdParams <- lift $
-				fmap (inParams settings options . pathFromEntry) $
+			(cmdParams :: CopyFileParams) <- lift $
+				fmap (inParams settings options . srcFromEntry) $
 				lookupFile file
-			liftIO $ putStrLn $ "file: " ++ show file
-			liftIO $ putStrLn $ "params: " ++ show cmdParams
+			--liftIO $ putStrLn $ "file: " ++ show file
+			--liftIO $ putStrLn $ "params: " ++ show cmdParams
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
 			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
@@ -129,7 +132,7 @@ infoFromEntry ::
 infoFromEntry settings listParams entry =
 	let
 		flags = ["-az", "-i", "-n", "-u"]
-		file = pathFromEntry entry
+		file = srcFromEntry entry
 		checkInParams =
 			inParams settings flags $
 			file
@@ -164,9 +167,9 @@ renderOutput entry cpyInParams inRes outRes x =
 			simpleInfo info=
 				case info of
 					Str s -> s
-					Path -> Path.path_toStr $ pathFromEntry entry
-					ThisPath -> Path.path_toStr $ copyParams_src cpyInParams
-					ServerPath -> Path.path_toStr $ copyParams_dest cpyInParams
+					Path -> srcFromEntry entry
+					ThisPath -> copyParams_src cpyInParams
+					ServerPath -> copyParams_dest cpyInParams
 			changeInfo rsyncRet =
 				P.concat .
 				map (either simpleInfo (flip rsyncInfo rsyncRet))

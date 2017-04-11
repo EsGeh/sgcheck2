@@ -5,9 +5,11 @@ module Persistence.Global(
 
 import Data
 import Utils
-import Utils.Path
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+--import Utils.Path
 
---type Path = Path.Path
+type Path = Path.FilePath
 
 
 configPath, hiddenFileEnding :: String

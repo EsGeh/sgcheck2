@@ -13,14 +13,18 @@ module Programs.InOut.Params(
 ) where
 
 --import Utils
-import qualified Utils.Path as Path
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+--import qualified Utils.Path as Path
 
 import Control.Monad.Identity
+
+type Path = Path.FilePath
 
 
 data CopyCommandParams
 	= CopyCommandParams {
-		copyCmd_file :: Path.Path,
+		copyCmd_file :: Path,
 		copyCmd_flags :: CopyFlags
 	}
 	deriving( Show, Eq, Ord )

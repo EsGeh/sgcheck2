@@ -8,7 +8,6 @@ module UserInput(
 import Programs.InOut.Params
 import UserInput.Types
 import Utils
-import qualified Utils.Path as Path
 
 import System.Console.GetOpt
 import qualified Data.List as List
@@ -17,8 +16,9 @@ import System.Environment( lookupEnv )
 import System.Directory( getHomeDirectory )
 import Data.Foldable( asum )
 
+--import System.FilePath as Path( (</>), (<.>) )
+--import qualified System.FilePath as Path
 
-type Path = Path.Path
 
 prgName :: String
 prgName = "sgcheck2"
@@ -28,7 +28,6 @@ envVarConfigDir = "SGCHECK2_CONFIGPATH"
 
 defConfigDir :: IO Path
 defConfigDir =
-	liftM Path.path_fromStr $
 	liftM2 (++)
 		getHomeDirectory
 		(return "/.sgcheck2")
@@ -47,8 +46,6 @@ lookupConfigDirFromEnv =
 	ExceptT $
 	liftM (
 		(maybeToEither "not installed correctly")
-		.
-		fmap Path.path_fromStr
 		) $
 	lookupEnv envVarConfigDir
 
@@ -159,7 +156,7 @@ copyOptDescr =
 
 generalOptDescr :: [OptDescr (GeneralOptions -> HelpOrM GeneralOptions)]
 generalOptDescr =
-	[ Option ['c'] ["config"] (ReqArg (\str o -> return $ o{ genOpts_configDir = Just $ Path.path_fromStr str }) "CONFIG_DIR") "the location of the config dir"
+	[ Option ['c'] ["config"] (ReqArg (\str o -> return $ o{ genOpts_configDir = Just $ str }) "CONFIG_DIR") "the location of the config dir"
 	, Option ['h'] ["help"] (NoArg (const $ Nothing)) "print help"
 	]
 
@@ -217,7 +214,7 @@ parseNoArgs cmdType args =
 parseFile :: Monad m => CommandType -> [String] -> ErrT m Path
 parseFile cmdType args =
 	case args of
-		[file] -> return $ Path.path_fromStr file
+		[file] -> return $ file
 		_ -> 
 			throwE $ List.concat ["wrong parameters for ", cmdType_toStr cmdType]
 
@@ -284,7 +281,7 @@ configHelp configDir =
 	, "the path of the config dir is determined by trying the following"
 	, "  * use the parameter of the command line option -c|--config-dir, if existent"
 	, "  * use the path of the environment variable $" ++ envVarConfigDir
-	, "  * use the default path \"" ++ Path.path_toStr configDir ++ "\""
+	, "  * use the default path \"" ++ configDir ++ "\""
 	, ""
 	, "if the directory doesn't exist, you will get an error. to create the config dir, and write some default config file, use"
 	, "\t" ++  cmdLineInput (concat $ [prgName, " ", cmdType_toStr WriteConfig] )

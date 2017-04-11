@@ -1,15 +1,16 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LambdaCase #-}
 module TestUtils(
-	module TestUtils,
-	--Path, (</>), (<.>),
-	--module Dir,
+	withTempDir,
+	ValidSettings(..),
+	--NonEmptyPath(..),
+	ValidPath(..),
+	catchExceptions,
+	genValidIPString,
 ) where
 
 import Data.Settings
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 import qualified TestUtils.Dir as Dir
 
 import Test.Tasty.QuickCheck
@@ -22,24 +23,38 @@ import Data.List
 import Data.Char
 import System.Directory( getTemporaryDirectory, removeDirectoryRecursive )
 
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
 import Control.Exception( catch, bracket )
 
 tempDirTemplate = "sgcheck2_configDir"
 
+type Path = Path.FilePath
+
+newtype ValidPath = ValidPath{ getValidPath :: Path }
+	deriving( Show, Eq, Ord )
+
+
+instance Arbitrary ValidPath where
+	arbitrary = ValidPath <$>
+		(listOf $ arbitrary `suchThat` isAlphaNum `suchThat` (/='\n'))
+		`suchThat` (not . null)
+		--arbitrary `suchThat` Path.isValid
 
 withTempDir :: MonadIO m => (Path -> m a) -> m a
 withTempDir f =
 	(liftIO getTemporaryDirectory) >>= \tempDir ->
 		do
 			path <- liftIO (createTempDirectory tempDir tempDirTemplate)
-			ret <- f (Path.path_fromStr path)
+			ret <- f path
 			liftIO $ ignoringIOErrors $ removeDirectoryRecursive path
 			return $ ret
 	{-
 	bracket
 		(createTempDirectory tempDir tempDirTemplate)
     (ignoringIOErrors . removeDirectoryRecursive)
-		(f . Path.path_fromStr)
+		f
 	-}
 	where
 		ignoringIOErrors = (`catch` (\e -> const (return ()) (e :: IOError)))
@@ -58,25 +73,23 @@ instance Arbitrary ValidSettings where
 		Settings <$>
 			arbitrary <*>
 			arbitrary <*>
-			(getNonEmptyPath <$> arbitrary) <*>
-			(getNonEmptyPath <$> arbitrary)
+			(getValidPath <$> arbitrary) <*>
+			(getValidPath <$> arbitrary)
 
+{-
 instance Arbitrary Settings where
 	arbitrary =
 		(uncurryN Settings) <$>
 		(arbitrary :: Gen (Maybe IP, Maybe IP, Path, Path))
+-}
 
+{-
 newtype NonEmptyPath = NonEmptyPath{ getNonEmptyPath :: Path } deriving( Show, Eq, Ord )
 
 instance Arbitrary NonEmptyPath where
 	arbitrary =
-		NonEmptyPath <$> arbitrary `suchThat` (not . Path.path_isEmpty)
-
-instance Arbitrary Path where
-	arbitrary =
-		Path.path_fromStr <$>
-		genValidPathString
-		-- Path.path_fromStr <$> arbitrary
+		NonEmptyPath <$> arbitrary `suchThat` (not . null)
+-}
 
 instance Arbitrary IP where
 	arbitrary =
@@ -96,10 +109,7 @@ genValidIPString =
 			map show $
 			numbers
 
+{-
 genValidPathString =
 	(listOf $ arbitrary `suchThat` isAlphaNum)
-
-{-
-Path.path_noNewlines =
-	takeWhile (/='\n') <$> arbitrary
 -}

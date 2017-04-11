@@ -4,8 +4,6 @@ module Programs.InOut.Utils_Test where
 
 import Programs.InOut.Utils
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 import Data.Settings
 import TestUtils
 
@@ -15,21 +13,25 @@ import Test.Hspec
 import Data.Tuple.Curry( uncurryN )
 import Data.List( intercalate )
 
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
+type Path = Path.FilePath
+
 
 prop_outParams options path =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	(not $ Path.path_isEmpty path) ==>
+	(not $ null path) ==>
 		let
 			CopyFileParams{..} = outParams settings options path
 			dest = 
-				thisPath settings </> Path.filename path
+				thisPath settings </> Path.takeFileName path
 		in
 			copyParams_cmd ===
 				("rsync"
 				, options ++ [
-					Path.path_toStr $ serverPath settings </> path,
-					Path.path_toStr $
-						Path.directory $ dest
+					serverPath settings </> path,
+						Path.takeDirectory $ dest
 				])
 			{-
 			.&&.
@@ -41,20 +43,20 @@ prop_outParams options path =
 			.&&.
 			copyParams_dest === dest
 
-prop_inParams options path =
+{-
+--prop_inParams options path =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	(not $ Path.path_isEmpty path) ==>
+	(not $ null path) ==>
 		let
 			CopyFileParams{..} = inParams settings options path
 			dest = 
-				serverPath settings </> Path.filename path
+				serverPath settings </> Path.takeFileName path
 		in
 			copyParams_cmd ===
 				("rsync"
 				, options ++ [
-					Path.path_toStr $ thisPath settings </> path,
-					Path.path_toStr $
-						Path.directory $ dest
+					thisPath settings </> path,
+						dest
 				])
 			{-
 			.&&.
@@ -65,10 +67,11 @@ prop_inParams options path =
 			copyParams_src === thisPath settings </> path
 			.&&.
 			copyParams_dest === dest
+-}
 
 {-
 -- prop_dirAndFilename =
 	forAll (getNonEmptyPath <$> arbitrary) $ \dir ->
 	forAll (getNonEmptyPath <$> arbitrary) $ \path ->
-	(directory $ dir </> filename path) === dir </> Path.path_fromStr ""
+	(directory $ dir </> filename path) === dir </> ""
 -}

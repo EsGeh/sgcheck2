@@ -5,11 +5,12 @@ module Data.Settings(
 ) where
 
 import Utils
-import qualified Utils.Path as Path
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
 
 import Text.Parsec
 
-type Path = Path.Path
+type Path = Path.FilePath
 
 
 -- settings
@@ -36,16 +37,16 @@ defSettings :: Settings
 defSettings = Settings {
 	serverIP = Nothing,
 	thisIP = Nothing,
-	serverPath = Path.path_fromStr "",
-	thisPath = Path.path_fromStr ""
+	serverPath =  "",
+	thisPath =  ""
 }
 
 settings_toStr :: Settings -> String
 settings_toStr settings =
 	"serverIP=" ++ (nothingToEmpty . fmap ip_toStr . serverIP) settings ++ "\n" ++
 	"thisIP=" ++ (nothingToEmpty . fmap ip_toStr . thisIP) settings ++ "\n" ++
-	"serverPath=" ++ (Path.path_toStr $ serverPath settings) ++ "\n" ++ 
-	"thisPath=" ++ (Path.path_toStr $ thisPath settings) ++ "\n"
+	"serverPath=" ++ (serverPath settings) ++ "\n" ++ 
+	"thisPath=" ++ (thisPath settings) ++ "\n"
 
 settings_fromStr :: String -> Either String Settings
 settings_fromStr str = settingsChangeFromString str <*> return defSettings 
@@ -67,8 +68,8 @@ parseSettingsTransform = do
 	return $ case k of
 		"serverIP" -> \def -> def{ serverIP = ip_fromStr v }
 		"thisIP" -> \def -> def{ thisIP = ip_fromStr v }
-		"serverPath" -> \def -> def{ serverPath = Path.path_fromStr v }
-		"thisPath" -> \def -> def{ thisPath = Path.path_fromStr v }
+		"serverPath" -> \def -> def{ serverPath =  v }
+		"thisPath" -> \def -> def{ thisPath =  v }
 		_ -> fail "unknown key!"
 
 

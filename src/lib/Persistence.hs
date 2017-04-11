@@ -10,9 +10,11 @@ import qualified Persistence.Settings as Settings
 import qualified Persistence.Entries as Entries
 import Data.Settings
 import Utils
-import qualified Utils.Path as Path
+--
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
 
-type Path = Path.Path
+type Path = Path.FilePath
 
 
 withSettings :: Path -> (Settings -> ErrT IO (Maybe Settings)) -> ErrT IO ()

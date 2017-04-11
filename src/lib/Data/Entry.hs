@@ -4,23 +4,26 @@ module Data.Entry(
 ) where
 
 --import Utils
-import qualified Utils.Path as Path
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
 
+type Path = Path.FilePath
 
-type Path = Path.Path
 
 data Entry
 	= Entry {
 		entry_path :: Path
 		--entry_syncInfo :: SyncInfo
 	}
-	deriving( Show )
+	deriving( Show, Read )
 
+{-
 data SyncInfo
 	= NotChanged
 	| NewerOnThis
 	| NewerOnServer
 	deriving( Show )
+-}
 
 entry_toText :: Entry -> String
-entry_toText = Path.path_toStr . entry_path
+entry_toText = entry_path

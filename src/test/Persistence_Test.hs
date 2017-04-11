@@ -5,8 +5,6 @@ import Persistence.Settings
 import Data.Entry
 import Data.Settings
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 import TestUtils
 
 import Test.QuickCheck
@@ -14,22 +12,31 @@ import Test.QuickCheck.Monadic
 
 import System.Directory( getTemporaryDirectory, removeDirectoryRecursive, listDirectory )
 
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
 import Data.Char
+
+type Path = Path.FilePath
 
 
 ---------------------------------
 -- Entry:
 ---------------------------------
 
-prop_testStoreEntry settings path =
+prop_testStoreEntry =
+	forAll (getValidSettings <$> arbitrary) $ \settings ->
+	forAll (getValidPath <$> arbitrary) $ \path ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
 			run $ catchExceptions $ writeHiddenFile configDir settings path undefined
-			dirContent <- run $ listDirectory (Path.path_toStr configDir)
-			assert $ dirContent == [ Path.path_toStr path ++ ".sgcheck2" ]
+			dirContent <- run $ listDirectory configDir
+			assert $ dirContent == [ path ++ ".sgcheck2" ]
 
-prop_testEntryPersistence settings path =
+prop_testEntryPersistence =
+	forAll (getValidSettings <$> arbitrary) $ \settings ->
+	forAll (getValidPath <$> arbitrary) $ \path ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
@@ -42,15 +49,17 @@ prop_testEntryPersistence settings path =
 -- Settings:
 ---------------------------------
 
-prop_testStoreSettings settings =
+prop_testStoreSettings =
+	forAll (getValidSettings <$> arbitrary) $ \settings ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
 			run $ catchExceptions $ storeSettings configDir settings
-			dirContent <- run $ listDirectory (Path.path_toStr configDir)
+			dirContent <- run $ listDirectory configDir
 			assert $ dirContent == [ "config" ]
 
-prop_testSettingsPersist settings =
+prop_testSettingsPersist =
+	forAll (getValidSettings <$> arbitrary) $ \settings ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
@@ -71,7 +80,7 @@ prop_createConfig =
 			run $ catchExceptions $ createConfig configDir
 
 			-- correct directory structure?
-			dirContent <- run $ listDirectory (Path.path_toStr configDir)
+			dirContent <- run $ listDirectory configDir
 			assert $ dirContent == [ "config" ]
 
 			-- empty settings created?

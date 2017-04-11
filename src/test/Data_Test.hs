@@ -2,17 +2,21 @@ module Data_Test where
 
 import Data.Settings
 import Utils
-import Utils.Path as Path( Path, (</>), (<.>) )
-import qualified Utils.Path as Path
 import TestUtils
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.QuickCheck.Monadic
 
-import Control.Applicative
 import System.Directory( createDirectoryIfMissing )
+
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
 import Data.Maybe
+import Control.Applicative
+
+type Path = Path.FilePath
 
 
 ---------------------------------
@@ -22,13 +26,14 @@ import Data.Maybe
 prop_assertPathsAreValid str =
 	monadicIO $
 	do
-		pre (Path.path_isValid (Path.path_fromStr str))
-		let path = Path.path_fromStr str
-		pre $ Path.relative $ Path.path_fromStr str
+		pre (Path.isValid str)
+		let path = str
+		pre $ Path.isRelative $ str
 
 		-- make shure we can create a file in this dir:
+		liftIO $ putStrLn $ "trying to create dir: " ++ str
 		run $ withTempDir $ \dir ->
-			createDirectoryIfMissing True $ Path.path_toStr $
+			createDirectoryIfMissing True $
 				dir </> path
 
 ---------------------------------
@@ -46,5 +51,6 @@ prop_ipNonEmpty =
 -- Settings:
 ---------------------------------
 
-prop_settingsSerialisation x =
+prop_settingsSerialisation =
+	forAll (getValidSettings <$> arbitrary) $ \x ->
 	Right x == (settings_fromStr . settings_toStr) x

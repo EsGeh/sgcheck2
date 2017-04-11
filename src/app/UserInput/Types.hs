@@ -2,9 +2,12 @@
 module UserInput.Types where
 
 import Programs.InOut.Params
-import Utils
-import Utils.Path
 import Data.Tuple( swap )
+--
+--import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
+type Path = Path.FilePath
 
 
 data UserInput

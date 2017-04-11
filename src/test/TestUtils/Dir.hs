@@ -20,7 +20,6 @@ module TestUtils.Dir(
 ) where
 
 import Utils
-import qualified Utils.Path as Path
 
 --import qualified System.File.Tree as Dir
 import qualified System.Directory.Tree as Dir
@@ -30,9 +29,10 @@ import qualified Data.Tree as Tree
 import Data.Foldable( asum )
 import Data.Maybe
 
-type Path = Path.Path
-(</>) = (Path.</>)
-(<.>) = (Path.<.>)
+import System.FilePath as Path( (</>), (<.>) )
+import qualified System.FilePath as Path
+
+type Path = Path.FilePath
 
 
 type DirDescr = Dir.DirTree FileContent
@@ -40,7 +40,7 @@ type DirDescr = Dir.DirTree FileContent
 type FileContent = String
 type PosInDir = [Path]
 
-dir_name = Path.path_fromStr . Dir.name
+dir_name = Dir.name
 dirFile = Dir.File
 dirDir = Dir.Dir
 
@@ -56,12 +56,12 @@ handleDirExceptions x =
 					return ()
 
 readDir :: Path -> IO DirDescr
-readDir = fmap Dir.dirTree . Dir.readDirectory . Path.path_toStr
+readDir = fmap Dir.dirTree . Dir.readDirectory
 
 writeDir :: MonadIO m => Path -> DirDescr -> ErrT m ()
 writeDir location dir =
 	handleDirExceptions $
-	Dir.writeDirectory $ (Path.path_toStr location) Dir.:/ dir
+	Dir.writeDirectory $ location Dir.:/ dir
 
 pos_down = drop 1
 pos_up = (:)
@@ -119,16 +119,16 @@ toTree :: Dir.DirTree a -> Tree.Tree (Path, Dir.DirTree a)
 toTree =
 	treeFromDir fromFile fromSubTrees
 	where
-		fromFile name content = Tree.Node (Path.path_fromStr name, Dir.File name content) []
+		fromFile name content = Tree.Node (name, Dir.File name content) []
 		fromSubTrees name content subTrees =
 			Tree.Node
-				(Path.path_fromStr $ name, Dir.Dir name content)
+				(name, Dir.Dir name content)
 				subTrees
 
 pos_getFilename = listToMaybe . reverse
 
 pos_getFullPath :: PosInDir -> Path
-pos_getFullPath = foldl (</>) (Path.path_fromStr "")
+pos_getFullPath = foldl (</>) ""
 
 allSubPositions =
 	map (pos_down . Tree.rootLabel) .
@@ -148,17 +148,17 @@ annotateWithPositions :: Dir.DirTree a -> Tree.Tree PosInDir
 annotateWithPositions dir =
 	treeFromDir treeFromFile treeFromTrees dir
 	where
-		treeFromFile name _ = Tree.Node [Path.path_fromStr name] []
+		treeFromFile name _ = Tree.Node [name] []
 		treeFromTrees name entries subNodes = 
-			Tree.Node [Path.path_fromStr name] $
-				map (fmap $ (Path.path_fromStr name :)) $
+			Tree.Node [name] $
+				map (fmap $ (name :)) $
 				subNodes
 	{-
 	case dir of
-		Dir.File name _ -> Tree.Node [Path.path_fromStr name] []
+		Dir.File name _ -> Tree.Node [name] []
 		Dir.Dir name entries ->
-			Tree.Node [Path.path_fromStr name] $
-				map (fmap $ (Path.path_fromStr name :)) $
+			Tree.Node [name] $
+				map (fmap $ (name :)) $
 				map annotateWithPositions entries
 	-}
 
