@@ -53,7 +53,7 @@ checkOut copyCmdParams settings memorizeFile =
 			liftIO $ putStrLn $ "params: " ++ show cmdParams
 			when (copyFlags_printCommand flags) $
 				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			lift $ ioSanityCheckParams settings file
+			--lift $ ioSanityCheckParams settings file
 			-- lift $ checkRSync
 			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
 			case cmdRet of
@@ -85,7 +85,7 @@ checkIn copyCmdParams settings lookupFile =
 			]
 	in
 		do
-			lift $ ioSanityCheckParams settings file
+			--lift $ ioSanityCheckParams settings file
 			-- lift $ checkRSync
 			(cmdParams :: CopyFileParams) <- lift $
 				fmap (inParams settings options . srcFromEntry) $
@@ -110,6 +110,7 @@ list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
 list settings listParams listEntries =
 	lift listEntries >>= \entries ->
 		do
+			--liftIO $ putStrLn $ "list. Entries: " ++ show entries
 			outputEntries <- lift $
 				forM entries $
 					catch . infoFromEntry settings listParams
@@ -136,10 +137,16 @@ infoFromEntry settings listParams entry =
 		checkInParams =
 			inParams settings flags $
 			file
+			{-
 		checkOutParams =
-			outParams settings flags file
+			outParams settings flags $
+			thisPath_fromOrigin settings $
+			file
+			-}
 	in
 		do
+			checkOutParams <-
+				maybe (error "error!") return $ outParamsFromEntry settings flags entry
 			inRes <-
 				(uncurry execCmd $ copyParams_cmd checkInParams)
 			outRes <-
@@ -147,7 +154,6 @@ infoFromEntry settings listParams entry =
 			return $
 				P.concat $
 				map (renderOutput entry checkInParams inRes outRes) $ listParams
-			--return $ calcOutput listParams entry checkInParams inRes outRes
 
 renderOutput :: Entry -> CopyFileParams -> String -> String -> Output -> String
 renderOutput entry cpyInParams inRes outRes x =
@@ -167,7 +173,7 @@ renderOutput entry cpyInParams inRes outRes x =
 			simpleInfo info=
 				case info of
 					Str s -> s
-					Path -> srcFromEntry entry
+					Path -> thisPathFromEntry entry
 					ThisPath -> copyParams_src cpyInParams
 					ServerPath -> copyParams_dest cpyInParams
 			changeInfo rsyncRet =

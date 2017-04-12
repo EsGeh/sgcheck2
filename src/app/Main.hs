@@ -15,19 +15,20 @@ import System.Environment( getArgs )
 
 main :: IO ()
 main = do
-	eitherErr <- runExceptT execProgram
+	eitherErr <- (runExceptT . execProgram) =<< userInputFromCmdArgs
 	case eitherErr of
 		Left err ->
 			do
 				putStrLn $ err
 				exitFailure
-		Right _ -> return ()
+		_ -> return ()
 
-execProgram :: ErrT IO ()
-execProgram =
+execProgram :: UserInput -> ErrT IO ()
+execProgram userInput =
 	do
-		userInput <- userInputFromCmdArgs =<< lift getArgs
+		--userInput <- userInputFromCmdArgs =<< lift getArgs
 		configDir <- calcConfigDir $ ui_configDir userInput
+		--liftIO $ putStrLn $ "configDir: " ++ show configDir
 		let cmd = ui_cmd userInput
 		if cmd_type cmd == WriteConfig
 			then Persistence.createConfig configDir

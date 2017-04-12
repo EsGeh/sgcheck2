@@ -9,15 +9,18 @@ import Programs.InOut.Params
 import UserInput.Types
 import Utils
 
-import System.Console.GetOpt
+import Options.Applicative as Opt
 import qualified Data.List as List
 
 import System.Environment( lookupEnv )
 import System.Directory( getHomeDirectory )
 import Data.Foldable( asum )
+import Data.Monoid
+import Data.List
 
---import System.FilePath as Path( (</>), (<.>) )
---import qualified System.FilePath as Path
+--import qualified Paths_sgcheck2 as SGCHECK
+
+import qualified Text.PrettyPrint.ANSI.Leijen as Doc
 
 
 prgName :: String
@@ -26,11 +29,14 @@ prgName = "sgcheck2"
 envVarConfigDir :: String
 envVarConfigDir = "SGCHECK2_CONFIGPATH"
 
+configDir_filename = 
+	".sgcheck2"
+
 defConfigDir :: IO Path
 defConfigDir =
 	liftM2 (++)
 		getHomeDirectory
-		(return "/.sgcheck2")
+		(return configDir_filename)
 
 
 calcConfigDir :: Maybe Path -> ErrT IO Path
@@ -44,239 +50,116 @@ calcConfigDir mPathFromOptions =
 lookupConfigDirFromEnv :: ErrT IO Path
 lookupConfigDirFromEnv =
 	ExceptT $
-	liftM (
-		(maybeToEither "not installed correctly")
-		) $
+	fmap (maybeToEither "not installed correctly") $
 	lookupEnv envVarConfigDir
 
 
 type HelpOrM a = Maybe a
 
+userInputFromCmdArgs :: IO UserInput
+userInputFromCmdArgs =
+	Opt.execParser $ Opt.info (inputParser <**> Opt.helper) mainInformation
 
-userInputFromCmdArgs :: [String] -> ErrT IO UserInput
-userInputFromCmdArgs args =
-	do
-		cd <- lift defConfigDir
-		(cmdType, rest) <-
-			case parseCmd args of
-				Nothing ->
-					throwE $ generalHelpStr cd generalOptDescr
-				Just x ->
-					x `catchE` \msg -> throwE $ unlines [ msg, generalHelpInfo ]
-		case cmdType of
-			x | x `elem` [In, Out] ->
-				flip (parseToInput cmdType optDescr (defCopyFlags, defGeneralOptions) (parseFile cmdType)) rest $
-					\(copyFlags, generalOpts) file ->
-						UserInput {
-							ui_cmd =
-								(case cmdType of { Out -> CmdOut; In -> CmdIn; _ -> error "" })
-									CopyCommandParams {
-										copyCmd_file = file,
-										copyCmd_flags = copyFlags
-									},
-							ui_configDir = genOpts_configDir $ generalOpts
-						}
-					where
-						optDescr =
-							map (fmap $ mapToFstM) copyOptDescr
-							++
-							map (fmap $ mapToSndM) generalOptDescr
-			ListFiles ->
-				flip (parseToInput cmdType optDescr (defListParamsMarkChanged,defGeneralOptions) (parseNoArgs cmdType)) rest $
-					\opts _ ->
-						UserInput {
-							ui_cmd =
-								CmdListFiles $
-									fst opts,
-							ui_configDir = genOpts_configDir $ snd opts
-						}
-					where
-						optDescr =
-							map (fmap $ mapToFstM) listFilesOptDescr
-							++
-							map (fmap $ mapToSndM) generalOptDescr
-			_ -> 
-				flip (parseToInput cmdType optDescr defGeneralOptions (parseNoArgs cmdType)) rest $
-				\opts _ ->
-					UserInput {
-						ui_cmd =
-							(case cmdType of { ShowConfig -> CmdShowConfig; WriteConfig -> CmdWriteConfig; _ -> error "" }),
-						ui_configDir = genOpts_configDir $ opts
-					}
-				where
-					optDescr =
-						generalOptDescr
+inputParser :: Opt.Parser UserInput
+inputParser =
+	UserInput
+		<$> commandParser
+		<*> option (Just <$> str) (long "config" <> short 'c' <> value Nothing <> metavar "CONFIG_DIR" <> help "the location of the config dir")
 
-parseToInput ::
-	CommandType
-	-> [OptDescr (options -> HelpOrM options)]
-	-> options
-	-> ([String] -> ExceptT String IO t)
-	-> (options -> t -> r)
-	-> [String]
-	-> ExceptT String IO r
-parseToInput cmdType optDescr defOpts parseArgs calcInput args =
-	do
-		cd <- lift defConfigDir
-		(opts, nonOpts) <-
-			case parseOptions defOpts optDescr args of
-				Nothing -> 
-					throwE $ showHelp cd cmdType optDescr
-				Just copyOpts' ->
-					copyOpts' `catchE` \msg -> throwE $ unlines [ msg, helpInfo cmdType ]
-		params <- parseArgs nonOpts
-		return $
-			calcInput opts params
+commandParser =
+	Opt.hsubparser $
+		(command "out" $ Opt.info ((CmdOut <$> outParamsParser)) out_info)
+		<> (command "in" $ Opt.info ((CmdIn <$> inParamsParser)) in_info)
+		<> (command "list" $ Opt.info ((CmdListFiles <$> listParamsParser)) list_info)
+		<> (command "showConfig" $ Opt.info (pure CmdShowConfig) showConfig_info)
+		<> (command "writeConfig" $ Opt.info (pure CmdWriteConfig) writeConfig_info)
 
-listFilesOptDescr :: [OptDescr (ListParams -> HelpOrM ListParams)]
-listFilesOptDescr =
+inParamsParser =
+	copyParamsParser
+		(metavar "FILE" <> help "the file to check in (relative to the \"thisPath\" location" )
+
+outParamsParser =
+	copyParamsParser
+		(metavar "FILE_AT_ORIGIN" <> help "the file to check out (relative to the \"serverPath\" location)" )
+
+copyParamsParser fileInfo=
+	CopyCommandParams
+		<$> Opt.argument Opt.str fileInfo
+		<*> (
+			CopyFlags
+				<$> switch (long "simulate" <> short 's' <> help "do not execute on filesystem")
+				<*> switch (long "print-command" <> short 'p' <> help "print rsync command being run")
+				<*> option auto (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
+		)
+
+listParamsParser =
+	fmap (\l -> if null l then defListParamsMarkChanged else l) $
+	many $
+		(SimpleOutput <$> simpleOutputInfoParser)
+
+	{-
 	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ uncurry defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "mark files which have changed locally/on the server"
 	, Option ['r'] ["output-rsync"] (NoArg (\_ -> return $ defListParamsRSyncOut)) "append rsync output"
-	, Option ['o'] ["output"] (NoArg (\_ -> return $ [])) "output for each entry will be defined by the following options"
-	, Option [] ["output-string"] (ReqArg (\str -> return . (++ [SimpleOutput $ Str str])) "any string") "add a string to each entry"
-	, Option [] ["output-path"] (NoArg (return . (++ [SimpleOutput $ Path]))) "add the path to each entry"
-	, Option [] ["output-thispath"] (NoArg (return . (++ [SimpleOutput $ ThisPath]))) "add the local path to each entry"
-	, Option [] ["output-serverpath"] (NoArg (return . (++ [SimpleOutput $ ServerPath]))) "add the path on the server to each entry"
+	-}
+
+-- for each entry: print the entry using the followin options:
+simpleOutputInfoParser =
+	Opt.option (Str <$> str) (long "output-string" <> help "add a string (useful as a seperator)")
+	<|> Opt.flag' Path (long "output-path" <> help "add a path as it could be used for \"in\"")
+	<|> Opt.flag' ThisPath (long "output-thispath" <> help "add local path" )
+	<|> Opt.flag' ServerPath (long "output-serverpath" <> help "add path server" )
+
+mainInformation =
+	mconcat $
+	[ Opt.fullDesc
+	, Opt.headerDoc $ Just $
+		Doc.vsep . map Doc.text $
+		[ "-----------------------------------------------"
+		, prgName
+		, "-----------------------------------------------"
+		]
+	, Opt.progDesc $
+		intercalate ". " $
+		[ "Synchronize files between two directories (possibly remote) while automatically memorizing their locations"
+		, "These two directories are called \"serverPath\" and \"thisPath\" and are specified using the config file"
+		, "Files can be \"checked out\" from the server, which will also memorize their original path"
+		, "Files which have been checked out this way can be \"checked in\" to their original location on the server"
+		]
+	, Opt.footerDoc $ Just $
+		configHelp
+		Doc.<$>
+		(Doc.vsep . map Doc.text)
+		[ "try"
+			, "\t" ++ (cmdLineInput $ concat [ prgName, " CMD --help"])
+		, "to get help for a specific command"
+		, ""
+		]
 	]
 
-markInfoFromStr :: String -> (String, String)
-markInfoFromStr = mapToSnd (drop 1) . span (/=',')
+out_info =
+	Opt.fullDesc
+	<> Opt.progDesc "check out a file (or directory) from server and memorize it"
 
-{-
-	[ Option [] ["mark-local"] (ReqArg (\str o -> return $ o{ simpleListDescr_markChangedLocally = str}) "MARKER") "do not execute"
-	]
--}
+in_info =
+	Opt.fullDesc
+	<> Opt.progDesc "check in a memorized file (or directory)"
 
-copyOptDescr :: [OptDescr (CopyFlags -> HelpOrM CopyFlags)]
-copyOptDescr =
-	[ Option ['s'] ["simulate"] (NoArg (\o -> return $ o{ copyFlags_simulate = True})) "do not execute"
-	, Option ['p'] ["print-command"] (NoArg (\o -> return $ o{ copyFlags_printCommand = True})) "do not execute"
-	, Option [] ["rsync-opts"] (ReqArg (\str o -> return $ copyFlags_mapToRSyncOpts (++[str]) o) "COPY_OPTIONS") "additional options to the copy command"
-	]
+list_info =
+	Opt.fullDesc
+	<> Opt.progDesc "list memorized files (or directories)"
 
-generalOptDescr :: [OptDescr (GeneralOptions -> HelpOrM GeneralOptions)]
-generalOptDescr =
-	[ Option ['c'] ["config"] (ReqArg (\str o -> return $ o{ genOpts_configDir = Just $ str }) "CONFIG_DIR") "the location of the config dir"
-	, Option ['h'] ["help"] (NoArg (const $ Nothing)) "print help"
-	]
+showConfig_info =
+	Opt.fullDesc
+	<> Opt.progDesc "show the location of the config used"
 
-{-
-packCopyFlags :: (CopyFlags -> HelpOrM CopyFlags)
-	-> (CopyOptions -> HelpOrM CopyOptions)
-packCopyFlags g opts =
-	copyOpts_mapToCopyFlagsM g $ opts
+writeConfig_info =
+	Opt.fullDesc
+	<> Opt.progDesc "write a new config directory"
 
-packGeneralOptions :: (GeneralOptions -> HelpOrM GeneralOptions)
-	-> (CopyOptions -> HelpOrM CopyOptions)
-packGeneralOptions g opts =
-	copyOpts_mapToGeneralM g $ opts
-{-
-	case opts of
-		Copyfmap g opts
--}
--}
-
-parseCmd :: Monad m => [String] -> Maybe (ErrT m (CommandType, [String]))
-parseCmd args =
-	case args of
-		(cmd:_)
-			| cmd `elem` ["-h", "--help"] -> Nothing
-		(cmd:rest) -> 
-			Just $
-				maybe (throwE $ "command " ++ cmd ++ " not found!") (return . (,rest)) $
-				cmdType_fromStr cmd
-		_ ->
-			Just $ throwE $ "command expected"
-
-parseOptions :: Monad m => options -> [OptDescr (options -> HelpOrM options)] -> [String] -> Maybe (ErrT m (options, [String]))
-parseOptions defOptions optDescr args =
-	let optReturn = getOpt RequireOrder optDescr args
-	in
-		case optReturn of
-			(opts', nonOpts, []) ->
-				let mOpts = foldl (>>=) (return defOptions) opts' -- :: Maybe Options
-				in
-					case mOpts of
-						Nothing ->
-							Nothing
-						Just opts ->
-							Just $ return $ (opts, nonOpts)
-			(_, _, errMsgs) ->
-				Just $ throwE $ unlines errMsgs
-
-parseNoArgs :: Monad m => CommandType -> [String] -> ErrT m ()
-parseNoArgs cmdType args =
-	case args of
-		[] -> return $ ()
-		_ -> 
-			throwE $ List.concat ["wrong parameters for ", cmdType_toStr cmdType]
-
-parseFile :: Monad m => CommandType -> [String] -> ErrT m Path
-parseFile cmdType args =
-	case args of
-		[file] -> return $ file
-		_ -> 
-			throwE $ List.concat ["wrong parameters for ", cmdType_toStr cmdType]
-
-helpInfo :: CommandType -> String
-helpInfo cmdType =
-	unlines $
-	[ "use "
-	, "\t" ++ cmdLineInput (concat $ [prgName, " ", cmdType_toStr cmdType, " --help"])
-	, " to get more info"
-	]
-
-generalHelpInfo :: String
-generalHelpInfo =
-	unlines $
-	[ "use "
-	, "\t" ++ cmdLineInput (concat $ [prgName, " --help"])
-	, " to get more info"
-	]
-
-generalHelpStr :: Path -> [OptDescr a] -> String
-generalHelpStr configDir optDescr =
-	unlines $
-	[ generalSyntaxStr
-	, ""
-	, usageInfo "general OPTIONS: " optDescr
-	, concat $ [ "CMD: " ]
-	, unlines $ map ( ("\t"++) . cmdType_toStr) $ cmdType_listAll
-	, ""
-	, "try"
-		, "\t" ++ (cmdLineInput $ concat [ prgName, " CMD --help"])
-	, "to get help for a specific command"
-	, ""
-	, configHelp configDir
-	]
-
-showHelp :: Path -> CommandType -> [OptDescr b] -> String
-showHelp configDir cmdType optDescr =
-	unlines $
-	[ syntaxStr cmdType
-	, ""
-	, usageInfo "OPTIONS for this command: " optDescr
-	, ""
-	, configHelp configDir
-	]
-
-generalSyntaxStr :: String
-generalSyntaxStr =
-	concat $ [ "syntax: ", prgName, " CMD [OPTIONS] [PARAMS]" ]
-
-syntaxStr :: CommandType -> String
-syntaxStr cmdType =
-	concat $
-	[ "syntax: ", prgName, " ", cmdType_toStr cmdType, " [OPTIONS] "
-	, case cmdType of
-			In -> "<file>"
-			Out -> "<file>"
-			_ -> ""
-	]
-
-configHelp :: Path -> String
-configHelp configDir =
-	unlines $
+configHelp :: Doc.Doc
+configHelp =
+	let configDir = "on linux: ~/" ++ configDir_filename in
+	Doc.vsep  . map Doc.text $
 	[ "files:"
 	, "the path of the config dir is determined by trying the following"
 	, "  * use the parameter of the command line option -c|--config-dir, if existent"

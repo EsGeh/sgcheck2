@@ -51,12 +51,21 @@ list configDir =
 			ExceptT $
 			(liftM Right $ getDirectoryContents $  configDir)
 				`catchIOError` (\e -> return $ Left $ "error listing entries: " ++ show e)
-		mapM (loadHiddenFile configDir) $
+		filtered <- mapM (loadHiddenFile configDir) $
 			map Path.dropExtension $
-			filter ((==hiddenFileEnding) . Path.takeExtension) $
+			filter ((==("." ++ hiddenFileEnding)) . Path.takeExtension) $
 			--filter (maybe False ((==hiddenFileEnding) ) . Path.takeExtension) $
 			allFiles
+		--liftIO $ putStrLn $ "Persistence.list: " ++ show filtered
+		return filtered
 	--return $ []
+
+{-
+catchIO msg x =
+	ExceptT $
+	liftIO $
+	catchIOError x (\e -> return $ Left $ msg ++ show e)
+-}
 
 {-
 hiddenFileContent :: Settings -> Path -> String

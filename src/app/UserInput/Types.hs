@@ -41,9 +41,6 @@ data CommandType
 	| WriteConfig
 	deriving( Eq, Ord, Enum, Bounded, Show )
 
-cmdType_listAll :: [CommandType]
-cmdType_listAll = [(minBound :: CommandType) .. ]
-
 class HasCommmandType a where
 	cmd_type :: a -> CommandType
 

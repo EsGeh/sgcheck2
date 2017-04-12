@@ -33,6 +33,8 @@ executable sgcheck2
     , transformers
     , directory
     , filepath
+    , optparse-applicative
+    , ansi-wl-pprint
   default-language:    Haskell2010
   ghc-options: -Wall -fno-warn-tabs
 

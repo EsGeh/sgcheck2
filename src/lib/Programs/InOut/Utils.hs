@@ -1,6 +1,8 @@
 module Programs.InOut.Utils(
 	CopyFileParams(..),
 	ioSanityCheckParams,
+	thisPathFromEntry,
+	outParamsFromEntry,
 	outParams,
 	inParams,
 	--copyParams,
@@ -24,9 +26,18 @@ import Prelude as P hiding( FilePath )
 
 import System.FilePath as Path( (</>) {-, (<.>) -} )
 import qualified System.FilePath as Path
+import Data.List
 
 type Path = Path.FilePath
 
+thisPathFromEntry =
+	Path.takeFileName .
+	srcFromEntry
+
+outParamsFromEntry settings options entry =
+	fmap (outParams settings options . Path.dropDrive) $
+	stripPrefix (serverPath settings) $
+	srcFromEntry entry
 
 outParams :: Settings -> [String] -> Path -> CopyFileParams
 outParams settings options =
@@ -43,17 +54,19 @@ outOptionsFromFileName settings pathRelToOrigin =
 	(src,dest)
 	where
 		src = serverPath settings </> pathRelToOrigin
-		dest = thisPath settings </> Path.takeFileName pathRelToOrigin
+		dest = thisPath_fromOrigin settings pathRelToOrigin
 
 inOptionsFromFileName :: Settings -> Path -> (Path, Path)
 inOptionsFromFileName settings pathAtOrigin =
 	(src, dest)
 	where
 		src =
-			thisPath settings </>
-			Path.takeFileName pathAtOrigin
+			thisPath_fromOrigin settings pathAtOrigin
 		dest =
 			pathAtOrigin
+
+thisPath_fromOrigin settings path =
+	thisPath settings </> Path.takeFileName path
 
 srcFromEntry :: Entry -> Path
 srcFromEntry =
@@ -109,12 +122,3 @@ ioSanityCheckParams settings file = do
 		(lift $ D.doesFileExist (serverPath settings </> file))
 		(lift $ D.doesDirectoryExist (serverPath settings </> file))
 	when (not exists) $ throwE $ "file \'" ++ file ++ "\' not found!"
-
-{-
-checkRSync :: ErrT IO ()
-checkRSync = do
-	processRes <- lift $ readProcessWithExitCode "rsync" ["--help"] ""
-	case processRes of
-		(ExitSuccess, _, _) -> return ()
-		(_, _, _) -> throwE $ "rsync not installed!"
--}
