@@ -10,7 +10,6 @@ import UserInput.Types
 import Utils
 
 import Options.Applicative as Opt
-import qualified Data.List as List
 
 import System.Environment( lookupEnv )
 import System.Directory( getHomeDirectory )
@@ -29,6 +28,7 @@ prgName = "sgcheck2"
 envVarConfigDir :: String
 envVarConfigDir = "SGCHECK2_CONFIGPATH"
 
+configDir_filename :: Path
 configDir_filename = 
 	".sgcheck2"
 
@@ -54,8 +54,6 @@ lookupConfigDirFromEnv =
 	lookupEnv envVarConfigDir
 
 
-type HelpOrM a = Maybe a
-
 userInputFromCmdArgs :: IO UserInput
 userInputFromCmdArgs =
 	Opt.execParser $ Opt.info (inputParser <**> Opt.helper) mainInformation
@@ -66,6 +64,7 @@ inputParser =
 		<$> commandParser
 		<*> option (Just <$> str) (long "config" <> short 'c' <> value Nothing <> metavar "CONFIG_DIR" <> help "the location of the config dir")
 
+commandParser :: Opt.Parser Command
 commandParser =
 	Opt.hsubparser $
 		(command "out" $ Opt.info ((CmdOut <$> outParamsParser)) out_info)
@@ -74,14 +73,17 @@ commandParser =
 		<> (command "showConfig" $ Opt.info (pure CmdShowConfig) showConfig_info)
 		<> (command "writeConfig" $ Opt.info (pure CmdWriteConfig) writeConfig_info)
 
+inParamsParser :: Opt.Parser CopyCommandParams
 inParamsParser =
 	copyParamsParser
 		(metavar "FILE" <> help "the file to check in (relative to the \"thisPath\" location" )
 
+outParamsParser :: Opt.Parser CopyCommandParams
 outParamsParser =
 	copyParamsParser
 		(metavar "FILE_AT_ORIGIN" <> help "the file to check out (relative to the \"serverPath\" location)" )
 
+copyParamsParser :: Opt.Mod ArgumentFields String -> Opt.Parser CopyCommandParams
 copyParamsParser fileInfo=
 	CopyCommandParams
 		<$> Opt.argument Opt.str fileInfo
@@ -92,6 +94,7 @@ copyParamsParser fileInfo=
 				<*> option auto (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
 		)
 
+listParamsParser :: Opt.Parser ListParams
 listParamsParser =
 	fmap (\l -> if null l then defListParamsMarkChanged else l) $
 	many $
@@ -103,12 +106,14 @@ listParamsParser =
 	-}
 
 -- for each entry: print the entry using the followin options:
+simpleOutputInfoParser :: Opt.Parser SimpleOutputInfo
 simpleOutputInfoParser =
 	Opt.option (Str <$> str) (long "output-string" <> help "add a string (useful as a seperator)")
 	<|> Opt.flag' Path (long "output-path" <> help "add a path as it could be used for \"in\"")
 	<|> Opt.flag' ThisPath (long "output-thispath" <> help "add local path" )
 	<|> Opt.flag' ServerPath (long "output-serverpath" <> help "add path server" )
 
+mainInformation :: Opt.InfoMod a
 mainInformation =
 	mconcat $
 	[ Opt.fullDesc
@@ -136,22 +141,27 @@ mainInformation =
 		]
 	]
 
+out_info :: Opt.InfoMod a
 out_info =
 	Opt.fullDesc
 	<> Opt.progDesc "check out a file (or directory) from server and memorize it"
 
+in_info :: Opt.InfoMod a
 in_info =
 	Opt.fullDesc
 	<> Opt.progDesc "check in a memorized file (or directory)"
 
+list_info :: Opt.InfoMod a
 list_info =
 	Opt.fullDesc
 	<> Opt.progDesc "list memorized files (or directories)"
 
+showConfig_info :: Opt.InfoMod a
 showConfig_info =
 	Opt.fullDesc
 	<> Opt.progDesc "show the location of the config used"
 
+writeConfig_info :: Opt.InfoMod a
 writeConfig_info =
 	Opt.fullDesc
 	<> Opt.progDesc "write a new config directory"

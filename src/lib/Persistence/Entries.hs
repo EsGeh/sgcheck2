@@ -1,9 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
 module Persistence.Entries(
 	writeHiddenFile, loadHiddenFile,
 	list
 ) where
 
-import Data.Settings
+--import Data.Settings
 import Persistence.Global
 import Utils
 
@@ -13,36 +14,23 @@ import System.IO.Error
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
 
+import Data.Yaml as Yaml
+
 type Path = Path.FilePath
 
 
 -- returns the origin:
 loadHiddenFile :: Path -> Path -> ErrT IO Entry
 loadHiddenFile configDir name =
-	fmap Entry $
-	liftIO $ readFile $ configDir </> name <.> hiddenFileEnding
-{-
-	(content :: String) <- lift $
-		--fmap read $
-		readFile $ configDir </> name <.> hiddenFileEnding
-	ExceptT $ return $
-		maybeToEither "couldn't read hidden file!" $
-		liftM Entry $
-		content
-		{-
-		L.stripPrefix "ORIGIN=" $
-		L.takeWhile (/='\n') $
-		content
-		-}
-	-}
+	errT $
+	fmap (mapLeft show) $
+	Yaml.decodeFileEither $ configDir </> name <.> hiddenFileEnding
 
-writeHiddenFile :: Path -> Settings -> Path -> Path -> ErrT IO ()
-writeHiddenFile configDir _ src _ = do
+writeHiddenFile :: Path -> Entry -> ErrT IO ()
+writeHiddenFile configDir entry@Entry{..} =
 	lift $
-		writeFile (configDir </> Path.takeFileName src <.> hiddenFileEnding) $
-		src
-		--show entry
-			-- hiddenFileContent settings src
+	encodeFile (configDir </> (entry_pathOnThis entry) <.> hiddenFileEnding)
+	entry
 
 list :: Path -> ErrT IO [Entry]
 list configDir =
@@ -54,7 +42,6 @@ list configDir =
 		filtered <- mapM (loadHiddenFile configDir) $
 			map Path.dropExtension $
 			filter ((==("." ++ hiddenFileEnding)) . Path.takeExtension) $
-			--filter (maybe False ((==hiddenFileEnding) ) . Path.takeExtension) $
 			allFiles
 		--liftIO $ putStrLn $ "Persistence.list: " ++ show filtered
 		return filtered
@@ -65,10 +52,4 @@ catchIO msg x =
 	ExceptT $
 	liftIO $
 	catchIOError x (\e -> return $ Left $ msg ++ show e)
--}
-
-{-
-hiddenFileContent :: Settings -> Path -> String
-hiddenFileContent _ src =
-	"ORIGIN=" ++  src ++ "\n"
 -}

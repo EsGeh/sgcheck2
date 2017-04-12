@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Data.Settings(
 	Settings(..), defSettings,
 	settings_toStr, settings_fromStr,
@@ -8,7 +9,11 @@ import Utils
 --import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
 
-import Text.Parsec
+import Data.Yaml as Yaml
+--import Data.Aeson as Yaml
+import Data.Aeson.Types as Yaml
+import GHC.Generics
+import qualified Data.ByteString.Char8 as BS
 
 type Path = Path.FilePath
 
@@ -20,7 +25,7 @@ data Settings = Settings {
 	serverPath :: Path,
 	thisPath :: Path
 }
-	deriving( Show, Eq, Ord )
+	deriving( Show, Eq, Ord, Generic )
 
 -- TODO: stronger guaranties:
 newtype IP = IP { fromIP :: String }
@@ -42,49 +47,34 @@ defSettings = Settings {
 }
 
 settings_toStr :: Settings -> String
-settings_toStr settings =
-	"serverIP=" ++ (nothingToEmpty . fmap ip_toStr . serverIP) settings ++ "\n" ++
-	"thisIP=" ++ (nothingToEmpty . fmap ip_toStr . thisIP) settings ++ "\n" ++
-	"serverPath=" ++ (serverPath settings) ++ "\n" ++ 
-	"thisPath=" ++ (thisPath settings) ++ "\n"
+settings_toStr =
+	BS.unpack . Yaml.encode
 
 settings_fromStr :: String -> Either String Settings
-settings_fromStr str = settingsChangeFromString str <*> return defSettings 
+settings_fromStr =
+	Yaml.decodeEither . BS.pack
 
+instance Yaml.FromJSON Settings where
+	parseJSON = Yaml.genericParseJSON encodingOptions
 
-settingsChangeFromString :: String -> Either String (Settings -> Settings)
-settingsChangeFromString str =
-	mapLeft show $
-		parse parseKeyValue "" str
-		>>=
-		parse (parseTransformations parseSettingsTransform) ""
+instance Yaml.ToJSON Settings where
+	toJSON = Yaml.genericToJSON encodingOptions
 
-parseTransformations :: (Show k, Show v) => Parsec [(k,v)] () (a -> a)  -> Parsec [(k,v)] () (a -> a)
-parseTransformations parseSingleTransform = chainl parseSingleTransform (return (.)) id
+instance Yaml.FromJSON IP where
+	parseJSON x =
+		parseJSON x >>= \str ->
+			case ip_fromStr str of
+				Nothing -> fail "invalid ip format"
+				Just ip -> return ip
+		--Yaml.genericParseJSON encodingOptions
 
-parseSettingsTransform :: Parsec [(String,String)] () (Settings -> Settings)
-parseSettingsTransform = do
-	(k,v) <- anyToken
-	return $ case k of
-		"serverIP" -> \def -> def{ serverIP = ip_fromStr v }
-		"thisIP" -> \def -> def{ thisIP = ip_fromStr v }
-		"serverPath" -> \def -> def{ serverPath =  v }
-		"thisPath" -> \def -> def{ thisPath =  v }
-		_ -> fail "unknown key!"
+instance Yaml.ToJSON IP where
+	toJSON =
+		toJSON . ip_toStr
+		--Yaml.genericToJSON encodingOptions
 
-
-parseKeyValue :: Parsec String () [(String,String)]
-parseKeyValue = do
-	kvList <- parseKV `sepEndBy` newline
-	--many newline
-	eof
-	return kvList
-	--`endBy` many (char '\n' <|> char ' ')
-
-parseKV :: Parsec String () (String,String)
-parseKV = do
-	spaces
-	key <- many $ noneOf "="
-	_ <- char '='
-	value <- many $ noneOf "\n"
-	return (key,value)
+encodingOptions :: Yaml.Options
+encodingOptions = Yaml.defaultOptions
+{-
+	 fieldLabelModifier = drop 1 . dropWhile (/='_')
+-}

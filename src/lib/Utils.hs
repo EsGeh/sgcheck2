@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Utils(
 	ErrT, ErrM,
+	errT,
 
 	lift2,
 	maybeToEither,
@@ -24,6 +25,8 @@ import Control.Monad.Identity
 
 type ErrM a = Except String a
 type ErrT t = ExceptT String t
+
+errT = ExceptT
 
 maybeToEither :: l -> Maybe a -> Either l a
 maybeToEither l mayb = case mayb of

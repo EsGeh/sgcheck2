@@ -10,7 +10,6 @@ import Utils
 import Control.Monad.Trans.Maybe
 
 import System.Exit( exitFailure )
-import System.Environment( getArgs )
 
 
 main :: IO ()
@@ -26,7 +25,6 @@ main = do
 execProgram :: UserInput -> ErrT IO ()
 execProgram userInput =
 	do
-		--userInput <- userInputFromCmdArgs =<< lift getArgs
 		configDir <- calcConfigDir $ ui_configDir userInput
 		--liftIO $ putStrLn $ "configDir: " ++ show configDir
 		let cmd = ui_cmd userInput

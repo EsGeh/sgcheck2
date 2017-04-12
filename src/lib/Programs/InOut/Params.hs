@@ -12,10 +12,7 @@ module Programs.InOut.Params(
 	RSyncOutFormat(..),
 ) where
 
---import Utils
---import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
---import qualified Utils.Path as Path
 
 import Control.Monad.Identity
 
@@ -46,10 +43,10 @@ data Output
 	deriving( Show, Eq, Ord )
 
 data SimpleOutputInfo
-	= Str String
-	| Path
-	| ThisPath
-	| ServerPath
+	= Str String -- constant string (seperator)
+	| Path -- pathOnThis
+	| ThisPath -- thisPath </> pathOnThis
+	| ServerPath -- serverPath </> pathOnServer
 	deriving( Show, Eq, Ord )
 
 data RSyncOutFormat
@@ -77,10 +74,6 @@ defListParamsMarkChanged = defListParamsMarkChangedWithMarker "*" "!"
 
 defListParamsMarkChangedWithMarker this server =
 	[ SimpleOutput $ Path
-	{-
-	, SimpleOutput $ Str "\t"
-	, SimpleOutput $ ServerPath
-	-}
 	, IfChangedOnThis $ [Left $ Str this]
 	, IfChangedOnServer $ [Left $ Str server]
 	]

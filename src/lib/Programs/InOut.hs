@@ -1,27 +1,24 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Programs.InOut where
 
 import Data
 import Programs.InOut.Params
-import Programs.InOut.Utils
+import qualified Programs.InOut.Utils as Utils
 import Utils
-
-import System.Exit
 
 import Control.Monad.Trans.Maybe
 import Data.Char
 import Prelude as P hiding( FilePath )
 
---import System.FilePath as Path( (</>), (<.>) )
+import System.FilePath as Path( (</>) {- (<.>) -})
 import qualified System.FilePath as Path
 
 type Path = Path.FilePath
 
 
 type MemorizeFile =
-	Settings
-	-> Path -- src
-	-> Path -- dest
+	Entry
 	-> ErrT IO ()
 
 type LookupFile =
@@ -32,30 +29,26 @@ type ListEntries =
 
 
 checkOut :: CopyCommandParams -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
-checkOut copyCmdParams settings memorizeFile =
+checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFile =
 	let
-		file = copyCmd_file copyCmdParams
-		flags = copyCmd_flags copyCmdParams
 		options =
-			(["-azv", "-u"]++) $
-			(++copyFlags_addRSyncOpts flags) $
-			map snd $
-			filter (\(cond, _) -> cond flags) $
-			[ (copyFlags_simulate, "-n")
-			]
+			["-azv", "-u"]
+			++ if copyFlags_simulate then ["-n"] else []
+			++ copyFlags_addRSyncOpts
+		entry :: Entry
+		entry = Utils.entryFromPathOnServer settings copyCmd_file
+		copyParams :: Utils.CopyFileParams
+		copyParams = Utils.out_copyParams options entry
 	in
 		do
-			let
-				cmdParams :: CopyFileParams
-				cmdParams =
-					outParams settings options $ file
-			liftIO $ putStrLn $ "file: " ++ show file
-			liftIO $ putStrLn $ "params: " ++ show cmdParams
-			when (copyFlags_printCommand flags) $
-				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			--lift $ ioSanityCheckParams settings file
-			-- lift $ checkRSync
-			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
+			{-
+			liftIO $ putStrLn $ "entry: " ++ show entry
+			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
+			-}
+			sanityCheckOutParams entry
+			when copyFlags_printCommand $
+				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
+			cmdRet <- runExceptT $ Utils.execCmd $ copyParams
 			case cmdRet of
 				Left (_, stdOut, stdErr) ->
 					lift $ throwE $ unlines $
@@ -65,36 +58,33 @@ checkOut copyCmdParams settings memorizeFile =
 						]
 				Right stdOut ->
 					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
-			let
-				src = copyParams_src cmdParams
-				dest = copyParams_dest cmdParams
-			lift $ uncurry (memorizeFile settings) $ (src,dest)
-			return settings
+			lift $ memorizeFile entry
+			MaybeT $ return Nothing
+
+sanityCheckOutParams entry = return ()
 
 checkIn :: CopyCommandParams -> Settings -> LookupFile -> MaybeT (ErrT IO) Settings
-checkIn copyCmdParams settings lookupFile =
+checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile =
 	let
-		file = copyCmd_file copyCmdParams
-		flags = copyCmd_flags copyCmdParams
 		options =
-			(["-azv", "-u", "--delete"] ++) $
-			(++copyFlags_addRSyncOpts flags) $
-			map snd $
-			filter (\(cond, _) -> cond flags) $
-			[ (copyFlags_simulate, "-n")
-			]
+			["-azv", "-u", "--delete"]
+			++ if copyFlags_simulate then ["-n"] else []
+			++ copyFlags_addRSyncOpts
 	in
 		do
-			--lift $ ioSanityCheckParams settings file
-			-- lift $ checkRSync
-			(cmdParams :: CopyFileParams) <- lift $
-				fmap (inParams settings options . srcFromEntry) $
-				lookupFile file
-			--liftIO $ putStrLn $ "file: " ++ show file
-			--liftIO $ putStrLn $ "params: " ++ show cmdParams
-			when (copyFlags_printCommand flags) $
-				lift2 $ putStrLn $ "executing: " ++ copyParams_fullCommand cmdParams
-			cmdRet <- runExceptT $ uncurry execCmd $ copyParams_cmd cmdParams
+			(entry :: Entry) <-
+				lift $ lookupFile $
+				copyCmd_file
+			let
+				copyParams :: Utils.CopyFileParams
+				copyParams = Utils.in_copyParams options entry
+			when copyFlags_printCommand $
+				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
+			{-
+			liftIO $ putStrLn $ "entry: " ++ show entry
+			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
+			-}
+			cmdRet <- runExceptT $ Utils.execCmd $ copyParams
 			case cmdRet of
 				Left (_, stdOut, stdErr) ->
 					lift $ throwE $ unlines $
@@ -106,17 +96,31 @@ checkIn copyCmdParams settings lookupFile =
 					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
 
+sanityCheckInParams entry = return ()
+
 list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
 list settings listParams listEntries =
-	lift listEntries >>= \entries ->
-		do
-			--liftIO $ putStrLn $ "list. Entries: " ++ show entries
-			outputEntries <- lift $
-				forM entries $
-					catch . infoFromEntry settings listParams
-			forM_ outputEntries $ \entry ->
-				when (entry /= "") $ lift $ lift $ putStrLn entry
-			MaybeT $ return $ Nothing
+	(>> (MaybeT $ return Nothing)) $
+	lift $ listEntries >>= \entries ->
+		forM entries $ \entry ->
+			let
+				flags = ["-az", "-i", "-n", "-u"]
+				outParams =
+					Utils.out_copyParams flags entry
+				inParams =
+					Utils.in_copyParams flags entry
+			in
+				do
+					--liftIO $ putStrLn $ "rendering: " ++ show entry
+					inRes <-
+						catch $ Utils.execCmd $ inParams
+					outRes <-
+						catch $ Utils.execCmd $ outParams
+					let renderRes =
+						P.concat $
+						map (renderEntryOutput entry inRes outRes) $ listParams
+					when (not $ null renderRes) $
+						liftIO $ putStrLn renderRes
 	where
 		catch x =
 			x `catchE` \(_, stdOut, stdErr) ->
@@ -126,37 +130,8 @@ list settings listParams listEntries =
 						, "rsync stderr:", stdErr
 						]
 
-infoFromEntry ::
-	MonadIO m =>
-	Settings -> ListParams -> Entry
-	-> ExceptT (ExitCode,String,String) m String
-infoFromEntry settings listParams entry =
-	let
-		flags = ["-az", "-i", "-n", "-u"]
-		file = srcFromEntry entry
-		checkInParams =
-			inParams settings flags $
-			file
-			{-
-		checkOutParams =
-			outParams settings flags $
-			thisPath_fromOrigin settings $
-			file
-			-}
-	in
-		do
-			checkOutParams <-
-				maybe (error "error!") return $ outParamsFromEntry settings flags entry
-			inRes <-
-				(uncurry execCmd $ copyParams_cmd checkInParams)
-			outRes <-
-				(uncurry execCmd $ copyParams_cmd checkOutParams)
-			return $
-				P.concat $
-				map (renderOutput entry checkInParams inRes outRes) $ listParams
-
-renderOutput :: Entry -> CopyFileParams -> String -> String -> Output -> String
-renderOutput entry cpyInParams inRes outRes x =
+renderEntryOutput :: Entry -> String -> String -> Output -> String
+renderEntryOutput entry@Entry{..} inRes outRes x =
 	let
 		trimmedInRes = trim isSpace inRes
 		trimmedOutRes = trim isSpace outRes
@@ -173,12 +148,11 @@ renderOutput entry cpyInParams inRes outRes x =
 			simpleInfo info=
 				case info of
 					Str s -> s
-					Path -> thisPathFromEntry entry
-					ThisPath -> copyParams_src cpyInParams
-					ServerPath -> copyParams_dest cpyInParams
+					Path -> entry_pathOnThis entry
+					ThisPath -> entry_thisPath </> entry_pathOnThis entry
+					ServerPath -> entry_serverPath </> entry_pathOnServer
 			changeInfo rsyncRet =
-				P.concat .
-				map (either simpleInfo (flip rsyncInfo rsyncRet))
+				concatMap (either simpleInfo (flip rsyncInfo rsyncRet))
 			rsyncInfo f =
 				let
 					concStr = rsyncF_interperseLines f
