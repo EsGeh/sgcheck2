@@ -44,7 +44,7 @@ prop_checkOut_copiesFilesCorrectly =
 				runExceptT $ Dir.findPosInDir (Dir.pos_up (Dir.dir_name origin) fileToCopy) origin
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
-				simulateCheckOut tempDir (Dir.pos_getFullPath $ fileToCopy) scenario
+				simulateCheckOut (testCopyParams $ Dir.pos_getFullPath $ fileToCopy) tempDir scenario
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			fileToCopy_filename <- handleIOErrs $
@@ -53,6 +53,26 @@ prop_checkOut_copiesFilesCorrectly =
 				Dir.readDir (tempDir </> Dir.dir_name this </> fileToCopy_filename)
 			--run $ putStrLn $ "copiedDir: " ++ show copiedDir
 			assert $ originalDir `Dir.dir_subsetOf` copiedDir
+
+prop_checkOut_simulateDoesntChangeFilesystem =
+	forAll (arbitrary) $ \scenario@TestScenario{..} ->
+	forAll (elements $ Dir.allSubPositionsRec origin) $ \fileToCopy ->
+		monadicIO $
+		handleIOErrs $
+		withTestScenario scenario $ \tempDir ->
+		do
+			--run $ putStrLn $ "scenario : " ++ show scenario
+			--run $ putStrLn $ "file : " ++ show fileToCopy
+			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
+			run $ putStrLn $ "originalDir: " ++ show originalDir
+			--run $ putStrLn $ "originalDir: " ++ show originalDir
+			maybeErr <-
+				simulateCheckOut (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = defCopyFlags{ copyFlags_simulate = True, copyFlags_printCommand = True} } tempDir scenario
+			run $ maybe (return ()) (putStrLn) $ maybeErr
+			assert $ isNothing maybeErr
+			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
+			run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
+			assert $ dirAfterCmd == originalDir
 
 prop_checkIn_copiesFilesCorrectly =
 	forAll (getValidCheckInScenario <$> arbitrary) $ \scenario@TestScenario{..} ->
@@ -69,7 +89,7 @@ prop_checkIn_copiesFilesCorrectly =
 				Dir.findPosInDir (Dir.pos_up (Dir.dir_name this) fileToCopy) this
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
-				simulateCheckIn tempDir (Dir.pos_getFullPath $ fileToCopy) scenario
+				simulateCheckIn (testCopyParams $ Dir.pos_getFullPath $ fileToCopy) tempDir scenario
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			fileToCopy_filename <- handleIOErrs $
@@ -78,6 +98,26 @@ prop_checkIn_copiesFilesCorrectly =
 				Dir.readDir (tempDir </> Dir.dir_name origin </> fileToCopy_filename)
 			--run $ putStrLn $ "copiedDir: " ++ show copiedDir
 			assert $ originalDir `Dir.dir_subsetOf` copiedDir
+
+prop_checkIn_simulateDoesntChangeFilesystem =
+	forAll (getValidCheckInScenario <$> arbitrary) $ \scenario@TestScenario{..} ->
+	forAll (elements $ configFiles) $ \fileToCopy ->
+		monadicIO $
+		handleIOErrs $
+		withTestScenario scenario $ \tempDir ->
+		do
+			--run $ putStrLn $ "scenario : " ++ show scenario
+			--run $ putStrLn $ "file : " ++ show fileToCopy
+			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
+			run $ putStrLn $ "originalDir: " ++ show originalDir
+			--run $ putStrLn $ "originalDir: " ++ show originalDir
+			maybeErr <-
+				simulateCheckIn (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = defCopyFlags{ copyFlags_simulate = True, copyFlags_printCommand = True} } tempDir scenario
+			run $ maybe (return ()) (putStrLn) $ maybeErr
+			assert $ isNothing maybeErr
+			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
+			run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
+			assert $ dirAfterCmd == originalDir
 
 prop_list_doesntChangeFS =
 	forAll (arbitrary) $ \scenario@TestScenario{..} ->
@@ -113,8 +153,8 @@ handleIOErrs x =
 					stop $ isRight ioErrOrRes
 			Right x -> return x
 
-simulateCheckOut :: Path -> Path -> TestScenario -> PropertyM IO (Maybe String)
-simulateCheckOut tempDir fileToCopy TestScenario{..} =
+simulateCheckOut :: CopyCommandParams -> Path -> TestScenario -> PropertyM IO (Maybe String)
+simulateCheckOut params tempDir TestScenario{..} =
 	do
 		let settings =
 			Settings{
@@ -127,13 +167,13 @@ simulateCheckOut tempDir fileToCopy TestScenario{..} =
 		--run $ putStrLn $ "simulateCheckOut. params: " ++ show params
 		let memorizeFile = Persistence.writeHiddenFile $ tempDir </> configDir
 		errOrRes <- run $ runExceptT $
-			runMaybeT $ checkOut (testCopyParams fileToCopy) settings memorizeFile
+			runMaybeT $ checkOut params settings memorizeFile
 		case errOrRes of
 			Left err -> return $ Just $ err
 			Right _ -> return Nothing
 
-simulateCheckIn :: Path -> Path -> TestScenario -> PropertyM IO (Maybe String)
-simulateCheckIn tempDir fileToCopy TestScenario{..} =
+simulateCheckIn :: CopyCommandParams -> Path -> TestScenario -> PropertyM IO (Maybe String)
+simulateCheckIn params tempDir TestScenario{..} =
 	do
 		let settings =
 			Settings{
@@ -148,7 +188,7 @@ simulateCheckIn tempDir fileToCopy TestScenario{..} =
 		-}
 		let lookupFile = Persistence.loadHiddenFile $ tempDir </> configDir
 		errOrRes <- run $ runExceptT $
-			runMaybeT $ checkIn (testCopyParams fileToCopy) settings lookupFile
+			runMaybeT $ checkIn params settings lookupFile
 		case errOrRes of
 			Left err -> return $ Just $ err
 			Right _ -> return Nothing

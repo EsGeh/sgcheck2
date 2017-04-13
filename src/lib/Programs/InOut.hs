@@ -45,6 +45,7 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFi
 			liftIO $ putStrLn $ "entry: " ++ show entry
 			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
 			-}
+			lift $ assertConfigDidntChange settings entry
 			sanityCheckOutParams entry
 			when copyFlags_printCommand $
 				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
@@ -58,7 +59,8 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFi
 						]
 				Right stdOut ->
 					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
-			lift $ memorizeFile entry
+			when (not $ copyFlags_simulate) $
+				lift $ memorizeFile entry
 			MaybeT $ return Nothing
 
 sanityCheckOutParams entry = return ()
@@ -75,6 +77,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile 
 			(entry :: Entry) <-
 				lift $ lookupFile $
 				copyCmd_file
+			lift $ assertConfigDidntChange settings entry
 			let
 				copyParams :: Utils.CopyFileParams
 				copyParams = Utils.in_copyParams options entry
@@ -95,6 +98,13 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile 
 				Right stdOut ->
 					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
+
+assertConfigDidntChange settings entry =
+	do
+		when (entry_thisPath entry /= thisPath settings) $
+			throwE "thisPath has changed! (please update manually!)"
+		when (entry_serverPath entry /= serverPath settings) $
+			throwE "serverPath has changed! (please update manually!)"
 
 sanityCheckInParams entry = return ()
 
