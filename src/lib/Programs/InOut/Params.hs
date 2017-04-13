@@ -30,6 +30,7 @@ data CopyFlags
 	= CopyFlags {
 		copyFlags_simulate :: Bool,
 		copyFlags_printCommand :: Bool,
+		copyFlags_printRSyncOut :: Bool,
 		copyFlags_addRSyncOpts :: [String]
 	}
 	deriving( Show, Eq, Ord )
@@ -59,6 +60,7 @@ defCopyFlags =
 	CopyFlags {
 		copyFlags_simulate = False,
 		copyFlags_printCommand = False,
+		copyFlags_printRSyncOut = True,
 		copyFlags_addRSyncOpts = []
 	}
 

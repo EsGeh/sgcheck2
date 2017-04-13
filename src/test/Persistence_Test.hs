@@ -37,7 +37,7 @@ prop_testStoreEntry =
 
 prop_testEntryPersistence =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	forAll arbitrary $ \entry ->
+	forAll (getValidEntry <$> arbitrary) $ \entry ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do

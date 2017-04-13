@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module TestUtils(
 	withTempDir,
 	--NonEmptyPath(..),
@@ -27,8 +28,9 @@ import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
 
 import Control.Exception( catch, bracket )
+import Control.Concurrent
 
-tempDirTemplate = "sgcheck2_configDir"
+tempDirTemplate = "sgcheck2_temp"
 
 type Path = Path.FilePath
 
@@ -37,8 +39,10 @@ withTempDir f =
 	(liftIO getTemporaryDirectory) >>= \tempDir ->
 		do
 			path <- liftIO (createTempDirectory tempDir tempDirTemplate)
+			--liftIO $ threadDelay 100000
 			ret <- f path
-			liftIO $ ignoringIOErrors $ removeDirectoryRecursive path
+			--liftIO $ threadDelay 100000
+			liftIO $ removeDirectoryRecursive path
 			return $ ret
 	{-
 	bracket
@@ -47,23 +51,11 @@ withTempDir f =
 		f
 	-}
 	where
-		ignoringIOErrors = (`catch` (\e -> const (return ()) (e :: IOError)))
+		ignoringIOErrors x = catch x $ \(e :: IOError) ->
+			return ()
+			--const (return ()) (e :: IOError)
 
 catchExceptions m =
 	runExceptT m >>= \case
 		Left err -> error err
 		Right x -> return x
-
-
-{-
-newtype NonEmptyPath = NonEmptyPath{ getNonEmptyPath :: Path } deriving( Show, Eq, Ord )
-
-instance Arbitrary NonEmptyPath where
-	arbitrary =
-		NonEmptyPath <$> arbitrary `suchThat` (not . null)
--}
-
-{-
-genValidPathString =
-	(listOf $ arbitrary `suchThat` isAlphaNum)
--}

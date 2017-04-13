@@ -24,7 +24,6 @@ import Data.Char
 import Data.Either
 import Data.Maybe
 import Data.Tuple.Curry( uncurryN )
---import Control.Concurrent
 
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
@@ -64,14 +63,13 @@ prop_checkOut_simulateDoesntChangeFilesystem =
 			--run $ putStrLn $ "scenario : " ++ show scenario
 			--run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			run $ putStrLn $ "originalDir: " ++ show originalDir
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
-				simulateCheckOut (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = defCopyFlags{ copyFlags_simulate = True, copyFlags_printCommand = True} } tempDir scenario
+				simulateCheckOut (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = testCopyFlags{ copyFlags_simulate = True } } tempDir scenario
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
+			--run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
 			assert $ dirAfterCmd == originalDir
 
 prop_checkIn_copiesFilesCorrectly =
@@ -109,14 +107,13 @@ prop_checkIn_simulateDoesntChangeFilesystem =
 			--run $ putStrLn $ "scenario : " ++ show scenario
 			--run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			run $ putStrLn $ "originalDir: " ++ show originalDir
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
-				simulateCheckIn (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = defCopyFlags{ copyFlags_simulate = True, copyFlags_printCommand = True} } tempDir scenario
+				simulateCheckIn (testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = testCopyFlags{ copyFlags_simulate = True} } tempDir scenario
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
+			--run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
 			assert $ dirAfterCmd == originalDir
 
 prop_list_doesntChangeFS =
@@ -126,13 +123,12 @@ prop_list_doesntChangeFS =
 		withTestScenario scenario $ \tempDir ->
 		do
 			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
+			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <- simulateList tempDir scenario
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			(dirAfterCmd :: Dir.DirDescr) <- run $ Dir.readDir tempDir
-			--run $ putStrLn $ "originalDir: " ++ show originalDir
 			--run $ putStrLn $ "dirAfterCmd: " ++ show dirAfterCmd
 			assert $ dirAfterCmd == originalDir
-			--return ()
 
 ignoreIOErrs ::
 	ErrT (PropertyM IO) a -> PropertyM IO ()
@@ -215,5 +211,10 @@ simulateList tempDir TestScenario{..} =
 testCopyParams fileToCopy =
 	CopyCommandParams{
 		copyCmd_file = fileToCopy,
-		copyCmd_flags = defCopyFlags { copyFlags_printCommand = True }
+		copyCmd_flags = testCopyFlags
 	}
+
+testCopyFlags = defCopyFlags {
+	copyFlags_printCommand = False,
+	copyFlags_printRSyncOut = False
+}

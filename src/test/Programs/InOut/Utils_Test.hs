@@ -16,6 +16,7 @@ import Data.List( intercalate )
 
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
+import Control.Concurrent
 
 type Path = Path.FilePath
 

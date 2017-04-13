@@ -50,6 +50,7 @@ isValidTestScenario TestScenario{..} =
 		[
 			all (\p -> Path.isValid p && Path.isRelative p) $ [origin_name, this_name, configDir]
 			, distinct [origin_name, this_name, configDir]
+			
 		]
 
 newtype ValidCheckInScenario = ValidCheckInScenario{ getValidCheckInScenario :: TestScenario }
@@ -144,18 +145,6 @@ withTestScenario scenario f =
 							do
 								--liftIO $ putStrLn $ "testScenario entry: " ++ show entry
 								Persistence.writeHiddenFile (tempDir </> configDir) $ entry
-{-
-			where
-				maybeCreateConfigFile :: Dir.PosInDir -> Maybe Dir.DirDescr
-				maybeCreateConfigFile dest =
-					do
-						dest_name <- (Dir.pos_getFilename dest)
-						let configFilename = dest_name ++ ".sgcheck2"
-						let configContent =
-							-- "ORIGIN=" ++ (Dir.pos_getFullPath dest)
-						return $
-							Dir.dirFile configFilename configContent
--}
 
 distinct [] = True
 distinct (x:xs) = ((/=x) `all` xs) && distinct xs
@@ -190,4 +179,4 @@ instance Arbitrary CopyCommandParams where
 instance Arbitrary CopyFlags where
 	arbitrary =
 		(uncurryN CopyFlags) <$>
-		(arbitrary :: Gen (Bool, Bool, [String]))
+		(arbitrary :: Gen (Bool, Bool, Bool, [String]))

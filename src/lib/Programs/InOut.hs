@@ -58,7 +58,8 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFi
 						, "rsync stderr:", stdErr
 						]
 				Right stdOut ->
-					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+					when copyFlags_printRSyncOut $
+						liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			when (not $ copyFlags_simulate) $
 				lift $ memorizeFile entry
 			MaybeT $ return Nothing
@@ -96,7 +97,8 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile 
 						, "rsync stderr:", stdErr
 						]
 				Right stdOut ->
-					liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+					when copyFlags_printRSyncOut $
+						liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
 
 assertConfigDidntChange settings entry =

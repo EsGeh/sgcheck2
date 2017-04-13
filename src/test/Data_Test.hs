@@ -31,7 +31,7 @@ prop_assertPathsAreValid =
 		pre $ Path.isRelative $ path
 
 		-- make shure we can create a file in this dir:
-		liftIO $ putStrLn $ "trying to create dir: " ++ path
+		--liftIO $ putStrLn $ "trying to create dir: " ++ path
 		run $ withTempDir $ \dir ->
 			createDirectoryIfMissing True $
 				dir </> path
