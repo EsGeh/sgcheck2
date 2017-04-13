@@ -24,6 +24,7 @@ import Data.Char
 import Data.Either
 import Data.Maybe
 import Data.Tuple.Curry( uncurryN )
+import Control.Concurrent
 
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
@@ -36,13 +37,15 @@ prop_checkOut_copiesFilesCorrectly =
 		handleIOErrs $
 		withTestScenario scenario $ \tempDir ->
 		do
-			--run $ putStrLn $ "file : " ++ show fileToCopy
+			run $ putStrLn $ "scenario : " ++ show scenario
+			run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <-
 				fmap (either error id) $
 				runExceptT $ Dir.findPosInDir (Dir.pos_up (Dir.dir_name origin) fileToCopy) origin
 			run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
 				simulateCheckOut tempDir (Dir.pos_getFullPath $ fileToCopy) scenario
+			liftIO $ threadDelay 1000
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			fileToCopy_filename <- handleIOErrs $
@@ -59,20 +62,23 @@ prop_checkIn_copiesFilesCorrectly =
 		handleIOErrs $
 		withTestScenario scenario $ \tempDir ->
 		do
-			--run $ putStrLn $ "scenario: " ++ show scenario
-			--run $ putStrLn $ "file : " ++ show fileToCopy
+			run $ putStrLn $ "scenario: " ++ show scenario
+			run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <-
 				--handleIOErrs $
 				fmap (either error id) $ runExceptT $
 				Dir.findPosInDir (Dir.pos_up (Dir.dir_name this) fileToCopy) this
+			run $ putStrLn $ "originalDir: " ++ show originalDir
 			maybeErr <-
 				simulateCheckIn tempDir (Dir.pos_getFullPath $ fileToCopy) scenario
+			liftIO $ threadDelay 1000
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
 			fileToCopy_filename <- handleIOErrs $
 				maybe (throwE "file to copy path is empty") return $ Dir.pos_getFilename fileToCopy
 			copiedDir <- run $
 				Dir.readDir (tempDir </> Dir.dir_name origin </> fileToCopy_filename)
+			run $ putStrLn $ "copiedDir: " ++ show copiedDir
 			assert $ copiedDir == originalDir
 
 prop_list_doesntChangeFS =

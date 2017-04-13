@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
 module Data.Entry(
 	Entry(..),
 	entry_pathOnThis,
+
+	ValidEntry(..),
+	entry_isValid,
 ) where
 
 import qualified System.FilePath as Path
@@ -9,6 +13,8 @@ import Data.Yaml as Yaml
 import Data.Aeson as Yaml
 import Data.Aeson.Types as Yaml
 import GHC.Generics
+
+import Test.QuickCheck
 
 type Path = Path.FilePath
 
@@ -27,7 +33,7 @@ data Entry
 		entry_serverPath :: Path,
 		entry_thisPath :: Path
 	}
-	deriving( Show, Read, Generic )
+	deriving( Show, Eq, Ord, Read, Generic )
 
 entry_pathOnThis :: Entry -> Path
 entry_pathOnThis =
@@ -50,3 +56,32 @@ encodingOptions :: Yaml.Options
 encodingOptions = Yaml.defaultOptions{
 	fieldLabelModifier = drop 1 . dropWhile (/='_')
 }
+
+-- for testing:
+
+entry_isValid Entry{..} =
+	and $
+	[ Path.isRelative entry_pathOnServer
+	, not $ Path.hasTrailingPathSeparator entry_pathOnServer
+	, not $ Path.hasTrailingPathSeparator entry_serverPath
+	, not $ Path.hasTrailingPathSeparator entry_thisPath
+	, Path.isValid entry_pathOnServer
+	, Path.isValid entry_thisPath
+	, Path.isValid entry_serverPath
+	]
+
+newtype ValidEntry = ValidEntry{ getValidEntry :: Entry }
+	deriving( Show, Eq, Read, Generic )
+
+instance Arbitrary ValidEntry where
+	arbitrary =
+		ValidEntry <$>
+		arbitrary `suchThat` entry_isValid
+
+instance Arbitrary Entry where
+	arbitrary =
+		do
+			entry_serverPath <- arbitrary
+			entry_thisPath <- arbitrary
+			entry_pathOnServer <- arbitrary
+			return Entry{..}

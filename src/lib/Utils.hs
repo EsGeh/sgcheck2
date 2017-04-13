@@ -13,6 +13,9 @@ module Utils(
 	module Control.Monad,
 	module Control.Monad.Trans,
 	module Control.Monad.Trans.Except,
+
+	ValidPath(..),
+	path_isValid
 ) where
 
 import Prelude hiding( FilePath )
@@ -21,6 +24,12 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Identity
+import Data.Char
+import qualified System.FilePath as Path
+
+import Test.QuickCheck
+
+type Path = Path.FilePath
 
 
 type ErrM a = Except String a
@@ -57,3 +66,28 @@ nothingToEmpty :: Maybe String -> String
 nothingToEmpty maybeStr = case maybeStr of
 	Nothing -> ""
 	Just str -> str
+
+
+newtype ValidPath = ValidPath{ getValidPath :: Path }
+	deriving( Show, Eq, Ord )
+
+path_isValid path =
+	(not $ null path)
+	&&
+	Path.isValid path
+	-- be more restrictive:
+	&&
+	all isAlphaNum path
+	&&
+	all (/='\n') path
+
+instance Arbitrary ValidPath where
+	arbitrary =
+		ValidPath <$>
+		arbitrary `suchThat` path_isValid `suchThat` ((<30) . length)
+		{-
+		ValidPath <$>
+		(listOf $ arbitrary `suchThat` isAlphaNum `suchThat` (/='\n'))
+		`suchThat` (not . null)
+		--arbitrary `suchThat` Path.isValid
+		-}

@@ -8,8 +8,11 @@ module Programs.TestUtils where
 import Programs.InOut
 import Programs.InOut.Params
 import Data.Settings
+import qualified Persistence.Entries as Persistence
+import qualified Persistence.Settings as Persistence
 import Utils
 import TestUtils
+import Programs.InOut.Utils
 import qualified TestUtils.Dir as Dir
 
 import Test.QuickCheck
@@ -24,10 +27,8 @@ import Data.Tuple.Curry( uncurryN )
 
 import Data.Foldable
 
-{-
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
--}
 
 
 -- a directory structure for testing:
@@ -47,7 +48,7 @@ isValidTestScenario TestScenario{..} =
 	in
 		and $
 		[
-			all (not . null) $ [origin_name, this_name, configDir]
+			all (\p -> Path.isValid p && Path.isRelative p) $ [origin_name, this_name, configDir]
 			, distinct [origin_name, this_name, configDir]
 		]
 
@@ -125,12 +126,25 @@ withTestScenario scenario f =
 			do
 				Dir.writeDir tempDir origin
 				Dir.writeDir tempDir this
-				let configDirTree =
-					Dir.dirDir configDir $
-					mapMaybe maybeCreateConfigFile $
-					--map (\dest -> Dir.dirFile (configFilenameFromDest dest) (configContentFromDest dest)) $
-					configFiles
-				Dir.writeDir tempDir configDirTree
+				errT . liftIO . runExceptT $ Persistence.createConfig $ tempDir </> configDir
+				errT . liftIO . runExceptT $
+					forM_ configFiles $ \dest ->
+						let
+							entry =
+								entryFromPathOnServer Settings{
+									thisPath = tempDir </> Dir.dir_name this,
+									serverPath = tempDir </> Dir.dir_name origin,
+									thisIP = Nothing, serverIP = Nothing
+								} $
+								Dir.pos_getFullPath $
+								--(Dir.pos_up $ tempDir) $
+								--(Dir.pos_up $ Dir.dir_name origin) $
+								dest
+						in
+							do
+								--liftIO $ putStrLn $ "testScenario entry: " ++ show entry
+								Persistence.writeHiddenFile (tempDir </> configDir) $ entry
+{-
 			where
 				maybeCreateConfigFile :: Dir.PosInDir -> Maybe Dir.DirDescr
 				maybeCreateConfigFile dest =
@@ -138,13 +152,10 @@ withTestScenario scenario f =
 						dest_name <- (Dir.pos_getFilename dest)
 						let configFilename = dest_name ++ ".sgcheck2"
 						let configContent =
-							Dir.pos_getFullPath $
-							(Dir.pos_up $ tempDir) $
-							(Dir.pos_up $ Dir.dir_name origin) $
-							dest
 							-- "ORIGIN=" ++ (Dir.pos_getFullPath dest)
 						return $
 							Dir.dirFile configFilename configContent
+-}
 
 distinct [] = True
 distinct (x:xs) = ((/=x) `all` xs) && distinct xs
@@ -152,7 +163,7 @@ distinct (x:xs) = ((/=x) `all` xs) && distinct xs
 instance Arbitrary Dir.DirDescr where
 	arbitrary =
 		resize 5 $
-		sized $ arbTree (getValidPath <$> arbitrary)
+		sized $ arbTree ((getValidPath <$> arbitrary) `suchThat` Path.isRelative `suchThat` (not . Path.hasTrailingPathSeparator))
 
 arbTree :: Gen Path -> Int -> Gen Dir.DirDescr
 arbTree fileNameGen 0 =
@@ -165,7 +176,9 @@ arbTree fileNameGen size =
 		(Positive subNodeCount) <- arbitrary
 		--let subNodeCount = 5
 		let childrenSize = size `div` (subNodeCount + 1)
-		f <- replicateM subNodeCount (arbTree fileNameGen childrenSize)
+		f <-
+			replicateM subNodeCount (arbTree fileNameGen childrenSize)
+			`suchThat` (distinct . map Dir.dir_name)
 		name <- fileNameGen
 		return $ Dir.dirDir name f
 

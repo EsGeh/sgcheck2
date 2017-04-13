@@ -5,6 +5,7 @@ module Programs.InOut.Utils_Test where
 import Programs.InOut.Utils
 import Utils
 import Data.Settings
+import Data.Entry
 import TestUtils
 
 import Test.QuickCheck
@@ -19,12 +20,24 @@ import qualified System.FilePath as Path
 type Path = Path.FilePath
 
 
-prop_outParams options path =
+prop_entryFromPathOnServer =
+	forAll (getValidSettings <$> arbitrary) $ \settings ->
+	forAll (getValidPath <$> arbitrary) $ \path ->
+	forAll arbitrary $ \(options :: [String]) ->
+		let
+			entry = entryFromPathOnServer settings path
+		in
+			(Path.isRelative $ entry_pathOnThis entry)
+			.&&.
+			(not $ Path.hasTrailingPathSeparator $ entry_pathOnThis entry)
+
+{-
+-- prop_outParams options path =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
 	(not $ null path) ==>
 		let
 			CopyFileParams{..} = outParams settings options path
-			dest = 
+			dest =
 				thisPath settings </> Path.takeFileName path
 		in
 			copyParams_cmd ===
@@ -40,31 +53,6 @@ prop_outParams options path =
 			-}
 			.&&.
 			copyParams_src === serverPath settings </> path
-			.&&.
-			copyParams_dest === dest
-
-{-
---prop_inParams options path =
-	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	(not $ null path) ==>
-		let
-			CopyFileParams{..} = inParams settings options path
-			dest = 
-				serverPath settings </> Path.takeFileName path
-		in
-			copyParams_cmd ===
-				("rsync"
-				, options ++ [
-					thisPath settings </> path,
-						dest
-				])
-			{-
-			.&&.
-			-- too difficult to test:
-			copyParams_fullCommand ===
-			-}
-			.&&.
-			copyParams_src === thisPath settings </> path
 			.&&.
 			copyParams_dest === dest
 -}

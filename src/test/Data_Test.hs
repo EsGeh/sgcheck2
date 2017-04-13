@@ -1,5 +1,6 @@
 module Data_Test where
 
+
 import Data.Settings
 import Utils
 import TestUtils
@@ -23,15 +24,14 @@ type Path = Path.FilePath
 -- Path:
 ---------------------------------
 
-prop_assertPathsAreValid str =
+prop_assertPathsAreValid =
+	forAll (getValidPath <$> arbitrary) $ \path ->
 	monadicIO $
 	do
-		pre (Path.isValid str)
-		let path = str
-		pre $ Path.isRelative $ str
+		pre $ Path.isRelative $ path
 
 		-- make shure we can create a file in this dir:
-		liftIO $ putStrLn $ "trying to create dir: " ++ str
+		liftIO $ putStrLn $ "trying to create dir: " ++ path
 		run $ withTempDir $ \dir ->
 			createDirectoryIfMissing True $
 				dir </> path
@@ -45,12 +45,12 @@ prop_ipSerialisation =
 	Just str === (ip_toStr <$> ip_fromStr str)
 
 prop_ipNonEmpty =
-	ip_fromStr "" == Nothing
+	ip_fromStr "" === Nothing
 
 ---------------------------------
 -- Settings:
 ---------------------------------
 
 prop_settingsSerialisation =
-	forAll (getValidSettings <$> arbitrary) $ \x ->
+	forAll arbitrary $ \x ->
 	Right x == (settings_fromStr . settings_toStr) x

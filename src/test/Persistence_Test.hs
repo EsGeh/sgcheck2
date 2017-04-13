@@ -25,24 +25,25 @@ type Path = Path.FilePath
 ---------------------------------
 
 prop_testStoreEntry =
-	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	forAll (getValidPath <$> arbitrary) $ \path ->
+	--forAll (getValidSettings <$> arbitrary) $ \settings ->
+	--forAll (getValidPath <$> arbitrary) $ \path ->
+	forAll (getValidEntry <$> arbitrary) $ \entry ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ writeHiddenFile configDir settings path undefined
+			run $ catchExceptions $ writeHiddenFile configDir entry
 			dirContent <- run $ listDirectory configDir
-			assert $ dirContent == [ path ++ ".sgcheck2" ]
+			assert $ dirContent == [ entry_pathOnThis entry ++ ".sgcheck2" ]
 
 prop_testEntryPersistence =
 	forAll (getValidSettings <$> arbitrary) $ \settings ->
-	forAll (getValidPath <$> arbitrary) $ \path ->
+	forAll arbitrary $ \entry ->
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ writeHiddenFile configDir settings path undefined
-			loadedEntry <- run $ catchExceptions $ loadHiddenFile configDir path
-			assert $ entry_path loadedEntry == path
+			run $ catchExceptions $ writeHiddenFile configDir entry
+			loadedEntry <- run $ catchExceptions $ loadHiddenFile configDir (entry_pathOnThis entry)
+			assert $ loadedEntry == entry
 
 
 ---------------------------------
