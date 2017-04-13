@@ -6,6 +6,7 @@ module TestUtils.Dir(
 	dirDir,
 	findPosInDir,
 	insert,
+	dir_subsetOf,
 
 	PosInDir,
 	pos_down, pos_up,
@@ -55,6 +56,33 @@ handleDirExceptions x =
 					--liftIO $ putStrLn $ "withTestScenario created: " ++ show ret
 					return ()
 
+dir_subsetOf :: DirDescr -> DirDescr -> Bool
+dir_subsetOf a b =
+	subset' (toTree a) (toTree b)
+	where
+		subset' ::
+			Tree.Tree (Dir.DirTree FileContent)
+			-> Tree.Tree (Dir.DirTree FileContent)
+			-> Bool
+		subset' a b =
+			let
+				aDir = (Tree.rootLabel a) 
+				bDir = (Tree.rootLabel b)
+			in
+				dir_name aDir == dir_name bDir
+			&&
+			(
+				case (aDir, bDir) of
+					(Dir.File _ x, Dir.File _ y) -> x == y
+					_ -> True
+			)
+			&&
+			(
+				all
+					(\x -> any (x `subset'`) $ Tree.subForest b) $
+					Tree.subForest a
+			)
+
 readDir :: Path -> IO DirDescr
 readDir = fmap Dir.dirTree . Dir.readDirectory
 
@@ -100,8 +128,11 @@ findPosInDir pos dirTree =
 
 walkDownDir ::
 	Monad m =>
-	PosInDir -> Tree.Tree (Path, Dir.DirTree a) -> ErrT m (Dir.DirTree a)
-walkDownDir pos (Tree.Node (path, dir) subNodes) =
+	PosInDir -> Tree.Tree (Dir.DirTree a) -> ErrT m (Dir.DirTree a)
+walkDownDir pos (Tree.Node dir subNodes) =
+	let
+		path = dir_name dir
+	in
 	case pos of
 		x:xs ->
 			do
@@ -115,14 +146,15 @@ walkDownDir pos (Tree.Node (path, dir) subNodes) =
 fromTree :: Tree.Tree (Path, Dir.DirTree a) -> Dir.DirTree a
 fromTree = undefined
 
-toTree :: Dir.DirTree a -> Tree.Tree (Path, Dir.DirTree a)
+toTree :: Dir.DirTree a -> Tree.Tree (Dir.DirTree a)
 toTree =
 	treeFromDir fromFile fromSubTrees
 	where
-		fromFile name content = Tree.Node (name, Dir.File name content) []
+		fromFile name content =
+			Tree.Node (Dir.File name content) []
 		fromSubTrees name content subTrees =
 			Tree.Node
-				(name, Dir.Dir name content)
+				(Dir.Dir name content)
 				subTrees
 
 pos_getFilename = listToMaybe . reverse
@@ -153,14 +185,6 @@ annotateWithPositions dir =
 			Tree.Node [name] $
 				map (fmap $ (name :)) $
 				subNodes
-	{-
-	case dir of
-		Dir.File name _ -> Tree.Node [name] []
-		Dir.Dir name entries ->
-			Tree.Node [name] $
-				map (fmap $ (name :)) $
-				map annotateWithPositions entries
-	-}
 
 treeFromDir treeFromFile treeFromTrees dir =
 	case dir of

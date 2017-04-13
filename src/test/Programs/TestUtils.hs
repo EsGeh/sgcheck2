@@ -163,7 +163,7 @@ distinct (x:xs) = ((/=x) `all` xs) && distinct xs
 instance Arbitrary Dir.DirDescr where
 	arbitrary =
 		resize 5 $
-		sized $ arbTree ((getValidPath <$> arbitrary) `suchThat` Path.isRelative `suchThat` (not . Path.hasTrailingPathSeparator))
+		sized $ arbTree ((getValidPath <$> arbitrary) `suchThat` Path.isRelative `suchThat` (not . Path.hasTrailingPathSeparator) `suchThat` (not . (Path.pathSeparator `elem`)))
 
 arbTree :: Gen Path -> Int -> Gen Dir.DirDescr
 arbTree fileNameGen 0 =

@@ -77,6 +77,10 @@ path_isValid path =
 	Path.isValid path
 	-- be more restrictive:
 	&&
+	all (/='\0') path
+	&&
+	all isAscii path
+	&&
 	all isAlphaNum path
 	&&
 	all (/='\n') path
