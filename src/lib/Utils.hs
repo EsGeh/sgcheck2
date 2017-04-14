@@ -1,7 +1,10 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Utils(
 	ErrT, ErrM,
 	errT,
+
+	catchExceptions, catchExceptions_IO,
 
 	lift2,
 	maybeToEither,
@@ -26,6 +29,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Identity
 import Data.Char
 import qualified System.FilePath as Path
+import qualified Control.Exception.Base as Exc
 
 import Test.QuickCheck
 
@@ -36,6 +40,24 @@ type ErrM a = Except String a
 type ErrT t = ExceptT String t
 
 errT = ExceptT
+
+catchExceptions ::
+	MonadIO m =>
+	String -> IO a -> ErrT m a
+catchExceptions msg x =
+	ExceptT $
+	liftIO $
+	fmap (mapLeft (\(e :: Exc.SomeException) -> msg ++ show e)) $
+	Exc.try x
+
+catchExceptions_IO ::
+	MonadIO m =>
+	String -> IO a -> ErrT m a
+catchExceptions_IO msg x =
+	ExceptT $
+	liftIO $
+	fmap (mapLeft (\(e :: Exc.IOException) -> msg ++ show e)) $
+	Exc.try x
 
 maybeToEither :: l -> Maybe a -> Either l a
 maybeToEither l mayb = case mayb of

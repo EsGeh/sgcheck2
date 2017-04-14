@@ -7,6 +7,7 @@ import Programs.InOut.Params
 import Data.Settings
 import Programs.TestUtils
 
+import qualified Persistence
 import qualified Persistence.Entries as Persistence
 import qualified Persistence.Settings as Persistence
 
@@ -161,33 +162,35 @@ simulateCheckOut params tempDir TestScenario{..} =
 			}
 		--run $ putStrLn $ "simulateCheckOut. settings: " ++ show settings
 		--run $ putStrLn $ "simulateCheckOut. params: " ++ show params
-		let memorizeFile = Persistence.writeHiddenFile $ tempDir </> configDir
-		errOrRes <- run $ runExceptT $
-			runMaybeT $ checkOut params settings memorizeFile
-		case errOrRes of
-			Left err -> return $ Just $ err
-			Right _ -> return Nothing
+		Persistence.withFileSys (tempDir </> configDir) $ \fileSys ->
+			do
+				errOrRes <- run $ runExceptT $
+					runMaybeT $ checkOut params settings fileSys
+				case errOrRes of
+					Left err -> return $ Just $ err
+					Right _ -> return Nothing
 
 simulateCheckIn :: CopyCommandParams -> Path -> TestScenario -> PropertyM IO (Maybe String)
 simulateCheckIn params tempDir TestScenario{..} =
-	do
-		let settings =
-			Settings{
-				serverIP = Nothing,
-				thisIP = Nothing,
-				serverPath = tempDir </> (Dir.dir_name origin),
-				thisPath = tempDir </> (Dir.dir_name this)
-			}
+	let settings =
+		Settings{
+			serverIP = Nothing,
+			thisIP = Nothing,
+			serverPath = tempDir </> (Dir.dir_name origin),
+			thisPath = tempDir </> (Dir.dir_name this)
+		}
+	in
 		{-
 		run $ putStrLn $ "simulateCheckOut. settings: " ++ show settings
 		run $ putStrLn $ "simulateCheckOut. params: " ++ show params
 		-}
-		let lookupFile = Persistence.loadHiddenFile $ tempDir </> configDir
-		errOrRes <- run $ runExceptT $
-			runMaybeT $ checkIn params settings lookupFile
-		case errOrRes of
-			Left err -> return $ Just $ err
-			Right _ -> return Nothing
+		Persistence.withFileSys (tempDir </> configDir) $ \fileSys ->
+		do
+			errOrRes <- run $ runExceptT $
+				runMaybeT $ checkIn params settings fileSys
+			case errOrRes of
+				Left err -> return $ Just $ err
+				Right _ -> return Nothing
 
 simulateList :: Path -> TestScenario -> PropertyM IO (Maybe String)
 simulateList tempDir TestScenario{..} =

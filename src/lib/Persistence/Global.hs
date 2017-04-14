@@ -1,7 +1,8 @@
 module Persistence.Global(
-	FileSys(..), Entry(..),
+	Entry(..),
 	configPath,
 	hiddenFileEnding,
+	logDir,
 	entry_pathOnThis,
 ) where
 
@@ -18,17 +19,4 @@ configPath, hiddenFileEnding :: String
 
 configPath = "config"
 hiddenFileEnding = "sgcheck2"
-
-
-data FileSys
-	= FileSys {
-		fs_memorizeFile ::
-			-- -> Path -- configDir
-			Entry
-			-> ErrT IO (),
-		fs_lookupFile ::
-			Path ->
-			ErrT IO Entry,
-		fs_list ::
-			ErrT IO [Entry]
-	}
+logDir = "logs"

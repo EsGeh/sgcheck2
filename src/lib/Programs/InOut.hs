@@ -1,9 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 module Programs.InOut where
 
 import Data
 import Programs.InOut.Params
+import Persistence
 import qualified Programs.InOut.Utils as Utils
 import Utils
 
@@ -28,13 +30,15 @@ type ListEntries =
 	ErrT IO [Entry]
 
 
-checkOut :: CopyCommandParams -> Settings -> MemorizeFile -> MaybeT (ErrT IO) Settings
-checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFile =
+checkOut :: CopyCommandParams -> Settings -> FileSys -> MaybeT (ErrT IO) Settings
+checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
 			["-azv", "-u"]
 			++ if copyFlags_simulate then ["-n"] else []
 			++ copyFlags_addRSyncOpts
+		memorizeFile = fs_memorizeFile fs
+		writeLog = fs_writeLogFile fs
 		entry :: Entry
 		entry = Utils.entryFromPathOnServer settings copyCmd_file
 		copyParams :: Utils.CopyFileParams
@@ -49,30 +53,29 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings memorizeFi
 			sanityCheckOutParams entry
 			when copyFlags_printCommand $
 				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
-			cmdRet <- runExceptT $ Utils.execCmd $ copyParams
-			case cmdRet of
-				Left (_, stdOut, stdErr) ->
-					lift $ throwE $ unlines $
-						[ "rsync failed!"
-						, "rsync stdout:", stdOut
-						, "rsync stderr:", stdErr
-						]
-				Right stdOut ->
-					when copyFlags_printRSyncOut $
-						liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+			stdOut <- execCopyCmd copyParams (writeLog entry)
 			when (not $ copyFlags_simulate) $
-				lift $ memorizeFile entry
+				do
+					lift $ writeLog
+						entry
+						(Utils.copyParams_fullCommand copyParams)
+						stdOut
+					lift $ memorizeFile entry
+			when copyFlags_printRSyncOut $
+				liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
 
 sanityCheckOutParams entry = return ()
 
-checkIn :: CopyCommandParams -> Settings -> LookupFile -> MaybeT (ErrT IO) Settings
-checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile =
+checkIn :: CopyCommandParams -> Settings -> FileSys -> MaybeT (ErrT IO) Settings
+checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
 			["-azv", "-u", "--delete"]
 			++ if copyFlags_simulate then ["-n"] else []
 			++ copyFlags_addRSyncOpts
+		lookupFile = fs_lookupFile fs
+		writeLog = fs_writeLogFile fs
 	in
 		do
 			(entry :: Entry) <-
@@ -88,18 +91,30 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings lookupFile 
 			liftIO $ putStrLn $ "entry: " ++ show entry
 			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
 			-}
-			cmdRet <- runExceptT $ Utils.execCmd $ copyParams
-			case cmdRet of
-				Left (_, stdOut, stdErr) ->
+			stdOut <- execCopyCmd copyParams (writeLog entry)
+			when (not $ copyFlags_simulate) $
+				do
+					lift $ writeLog
+						entry
+						(Utils.copyParams_fullCommand copyParams)
+						stdOut
+			when copyFlags_printRSyncOut $
+				liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
+			MaybeT $ return Nothing
+
+execCopyCmd copyParams writeLog =
+		(runExceptT $ Utils.execCmd $ copyParams) >>= \case
+			Left (_, stdOut, stdErr) ->
+				do
+					lift $ writeLog
+						(Utils.copyParams_fullCommand copyParams)
+						(unlines [stdOut, "errors:", stdErr])
 					lift $ throwE $ unlines $
 						[ "rsync failed!"
 						, "rsync stdout:", stdOut
 						, "rsync stderr:", stdErr
 						]
-				Right stdOut ->
-					when copyFlags_printRSyncOut $
-						liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
-			MaybeT $ return Nothing
+			Right stdOut -> return stdOut
 
 assertConfigDidntChange settings entry =
 	do

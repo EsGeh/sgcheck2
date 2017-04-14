@@ -6,7 +6,7 @@ module TestUtils(
 	withTempDir,
 	--NonEmptyPath(..),
 	ValidPath(..),
-	catchExceptions,
+	catchErrorsInTest,
 ) where
 
 import Data.Settings
@@ -55,7 +55,10 @@ withTempDir f =
 			return ()
 			--const (return ()) (e :: IOError)
 
-catchExceptions m =
+catchErrorsInTest ::
+	Monad m =>
+	ErrT m a -> m a
+catchErrorsInTest m =
 	runExceptT m >>= \case
-		Left err -> error err
+		Left err -> fail err
 		Right x -> return x

@@ -6,6 +6,7 @@ import Data.Entry
 import Data.Settings
 import Utils
 import TestUtils
+import qualified TestUtils.Dir as Dir
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
@@ -16,6 +17,7 @@ import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
 
 import Data.Char
+import Data.List
 
 type Path = Path.FilePath
 
@@ -31,7 +33,7 @@ prop_testStoreEntry =
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ writeHiddenFile configDir entry
+			run $ catchErrorsInTest $ writeHiddenFile configDir entry
 			dirContent <- run $ listDirectory configDir
 			assert $ dirContent == [ entry_pathOnThis entry ++ ".sgcheck2" ]
 
@@ -41,8 +43,8 @@ prop_testEntryPersistence =
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ writeHiddenFile configDir entry
-			loadedEntry <- run $ catchExceptions $ loadHiddenFile configDir (entry_pathOnThis entry)
+			run $ catchErrorsInTest $ writeHiddenFile configDir entry
+			loadedEntry <- run $ catchErrorsInTest $ loadHiddenFile configDir (entry_pathOnThis entry)
 			assert $ loadedEntry == entry
 
 
@@ -55,7 +57,7 @@ prop_testStoreSettings =
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ storeSettings configDir settings
+			run $ catchErrorsInTest $ storeSettings configDir settings
 			dirContent <- run $ listDirectory configDir
 			assert $ dirContent == [ "config" ]
 
@@ -64,9 +66,9 @@ prop_testSettingsPersist =
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $
+			run $ catchErrorsInTest $
 				storeSettings configDir settings
-			loadedSettings <- run $ catchExceptions $
+			loadedSettings <- run $ catchErrorsInTest $
 				loadSettings configDir
 			assert $ loadedSettings == settings
 
@@ -78,13 +80,14 @@ prop_createConfig =
 	monadicIO $
 	withTempDir $ \configDir ->
 		do
-			run $ catchExceptions $ createConfig configDir
+			run $ catchErrorsInTest $ createConfig configDir
 
 			-- correct directory structure?
+			-- TODO: find better test:
 			dirContent <- run $ listDirectory configDir
-			assert $ dirContent == [ "config" ]
+			assert $ dirContent `elem` permutations [ "config", "logs" ]
 
 			-- empty settings created?
-			loadedSettings <- run $ catchExceptions $
+			loadedSettings <- run $ catchErrorsInTest $
 				loadSettings configDir
 			assert $ loadedSettings == defSettings

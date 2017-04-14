@@ -36,9 +36,9 @@ execProgram userInput =
 					runMaybeT $
 					case cmd of
 						CmdOut file ->
-							Programs.checkOut file settings (Persistence.fs_memorizeFile fileSys)
+							Programs.checkOut file settings fileSys
 						CmdIn file ->
-							Programs.checkIn file settings (Persistence.fs_lookupFile fileSys)
+							Programs.checkIn file settings fileSys
 						CmdListFiles listArgs ->
 							Programs.list settings listArgs
 								(Persistence.fs_list fileSys)

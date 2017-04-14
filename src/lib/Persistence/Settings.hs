@@ -19,28 +19,30 @@ type Path = Path.FilePath
 
 
 loadSettings :: Path -> ErrT IO Settings
-loadSettings configDir = do
-	loadSettingsFromPath $ configDir </> configPath
-
-createConfig :: Path -> ErrT IO ()
-createConfig configDir = do
-	ExceptT $
-		liftM Right (createDirectoryIfMissing True $ configDir)
-		`catchIOError` (\e -> return $ Left $ L.concat $ ["error creating config dir at \"", configDir, "\": ", show e])
-	storeSettings configDir defSettings
+loadSettings configDir =
+	let
+		path = configDir </> configPath
+	in
+		(ExceptT . return . settings_fromStr =<<) $
+		catchExceptions_IO (L.concat $ ["error loading config from \"", path, "\"" ]) $
+			readFile $ path
 
 {- |lookup config dir, store settings
 -}
 storeSettings :: Path -> Settings -> ErrT IO ()
-storeSettings configDir settings = do
-	storeSettings' (configDir </> configPath)
-	where
-		storeSettings' :: Path -> ErrT IO ()
-		storeSettings' path = do
-			ExceptT $ liftM Right (writeFile path $ settings_toStr settings)
-				`catchIOError` (\e -> return $ Left $ L.concat $ ["error writing config to \"", path, "\": ", show e])
+storeSettings configDir settings =
+	let
+		path = configDir </> configPath
+	in
+		catchExceptions_IO (L.concat $ ["error writing config to \"", path, "\"" ]) $
+			writeFile path $ settings_toStr settings
 
-loadSettingsFromPath :: Path -> ErrT IO Settings
-loadSettingsFromPath path = do
-	file <- ExceptT $ liftM Right (readFile $ path) `catchIOError` (\e -> return $ Left $ "error while loading config: " ++ show e)
-	ExceptT $ return $ settings_fromStr file
+createConfig :: Path -> ErrT IO ()
+createConfig configDir =
+	do
+		catchExceptions_IO "error creating config dir" $
+			do
+				createDirectoryIfMissing True $ configDir
+				createDirectoryIfMissing True $
+					configDir </> logDir
+		storeSettings configDir defSettings

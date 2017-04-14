@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Persistence.Entries(
 	writeHiddenFile, loadHiddenFile,
+	writeLogFile,
 	list
 ) where
 
@@ -15,6 +17,10 @@ import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
 
 import Data.Yaml as Yaml
+import qualified Data.Time as Time
+
+--import qualified Control.Exception.Base as Exc
+import Data.List
 
 type Path = Path.FilePath
 
@@ -32,13 +38,29 @@ writeHiddenFile configDir entry@Entry{..} =
 	encodeFile (configDir </> (entry_pathOnThis entry) <.> hiddenFileEnding)
 	entry
 
+writeLogFile :: Path -> Entry -> String -> String -> ErrT IO ()
+writeLogFile configDir entry command logStr =
+	do
+		catchExceptions_IO "error creating log dir" $
+			createDirectoryIfMissing True $
+				configDir </> logDir </> entry_pathOnThis entry
+		timeStr <- getTimeString
+		catchExceptions_IO "error writing file" $
+			writeFile (
+				configDir </> logDir </> entry_pathOnThis entry </> concat [entry_pathOnThis entry, "-", timeStr] <.> "log"
+			) $
+				intercalate "\n" $
+				[ command
+				, "--------------------------------------"
+				, logStr
+				]
+
 list :: Path -> ErrT IO [Entry]
 list configDir =
 	do
 		allFiles <-
-			ExceptT $
-			(liftM Right $ getDirectoryContents $  configDir)
-				`catchIOError` (\e -> return $ Left $ "error listing entries: " ++ show e)
+			catchExceptions_IO "error listing entries" $
+			getDirectoryContents configDir
 		filtered <- mapM (loadHiddenFile configDir) $
 			map Path.dropExtension $
 			filter ((==("." ++ hiddenFileEnding)) . Path.takeExtension) $
@@ -47,9 +69,13 @@ list configDir =
 		return filtered
 	--return $ []
 
-{-
-catchIO msg x =
-	ExceptT $
-	liftIO $
-	catchIOError x (\e -> return $ Left $ msg ++ show e)
--}
+getTimeString :: ErrT IO String
+getTimeString =
+	catchExceptions "error calculating time" $
+	do
+		zone <- Time.getCurrentTimeZone
+		time <- Time.utcToLocalTime zone <$> Time.getCurrentTime
+		return $
+			Time.formatTime Time.defaultTimeLocale
+				"%F_%T" $
+			time
