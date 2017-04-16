@@ -32,7 +32,7 @@ execProgram userInput =
 			then Persistence.createConfig configDir
 			else
 				Persistence.withSettings configDir $ \settings ->
-				Persistence.withFileSys configDir $ \fileSys ->
+				Persistence.withFileSys settings configDir $ \fileSys ->
 					runMaybeT $
 					case cmd of
 						CmdOut file ->

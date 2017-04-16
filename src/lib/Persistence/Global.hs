@@ -1,12 +1,9 @@
 module Persistence.Global(
-	Entry(..),
 	configPath,
 	hiddenFileEnding,
 	logDir,
-	entry_pathOnThis,
 ) where
 
-import Data
 import Utils
 --import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path

@@ -5,10 +5,10 @@ module Persistence(
 	withFileSys
 ) where
 
-import Persistence.Global
+--import Persistence.Global
 import qualified Persistence.Settings as Settings
 import qualified Persistence.Entries as Entries
-import Data.Settings
+import Data
 import Utils
 --
 --import System.FilePath as Path( (</>), (<.>) )
@@ -45,15 +45,15 @@ withSettings configDir f =
 			(Settings.storeSettings configDir)
 			mNewSettings
 
-withFileSys :: Path -> (FileSys -> a) -> a
-withFileSys configDir f =
+withFileSys :: Settings -> Path -> (FileSys -> a) -> a
+withFileSys settings configDir f =
 	f $ FileSys {
 		fs_memorizeFile =
 			Entries.writeHiddenFile configDir,
 		fs_lookupFile =
-			Entries.loadHiddenFile configDir,
+			Entries.loadHiddenFile settings configDir,
 		fs_writeLogFile =
 			Entries.writeLogFile configDir,
 		fs_list =
-			Entries.list configDir
+			Entries.list settings configDir
 	}

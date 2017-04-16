@@ -6,7 +6,7 @@ module Persistence.Entries(
 	list
 ) where
 
---import Data.Settings
+import Data
 import Persistence.Global
 import Utils
 
@@ -26,8 +26,9 @@ type Path = Path.FilePath
 
 
 -- returns the origin:
-loadHiddenFile :: Path -> Path -> ErrT IO Entry
-loadHiddenFile configDir name =
+loadHiddenFile :: Settings -> Path -> Path -> ErrT IO Entry
+loadHiddenFile settings configDir name =
+	fmap (entry_fromSavedInfo settings) $
 	errT $
 	fmap (mapLeft show) $
 	Yaml.decodeFileEither $ configDir </> name <.> hiddenFileEnding
@@ -35,8 +36,8 @@ loadHiddenFile configDir name =
 writeHiddenFile :: Path -> Entry -> ErrT IO ()
 writeHiddenFile configDir entry@Entry{..} =
 	lift $
-	encodeFile (configDir </> (entry_pathOnThis entry) <.> hiddenFileEnding)
-	entry
+	encodeFile (configDir </> (entry_pathOnThis entry) <.> hiddenFileEnding) $
+	entry_toSavedInfo entry
 
 writeLogFile :: Path -> Entry -> String -> String -> ErrT IO ()
 writeLogFile configDir entry command logStr =
@@ -55,13 +56,13 @@ writeLogFile configDir entry command logStr =
 				, logStr
 				]
 
-list :: Path -> ErrT IO [Entry]
-list configDir =
+list :: Settings -> Path -> ErrT IO [Entry]
+list settings configDir =
 	do
 		allFiles <-
 			catchExceptions_IO "error listing entries" $
 			getDirectoryContents configDir
-		filtered <- mapM (loadHiddenFile configDir) $
+		filtered <- mapM (loadHiddenFile settings configDir) $
 			map Path.dropExtension $
 			filter ((==("." ++ hiddenFileEnding)) . Path.takeExtension) $
 			allFiles

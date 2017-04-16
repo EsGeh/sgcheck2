@@ -115,28 +115,30 @@ genScenario managedFilesCanBeEmpty =
 -}
 withTestScenario ::
 	forall a m .
-	MonadIO m => TestScenario -> (Path -> m a) -> ErrT m a
+	MonadIO m => TestScenario -> (Path -> Settings -> m a) -> ErrT m a
 withTestScenario scenario f =
 	withTempDir $ \tempDir ->
 		(prepareFiles scenario tempDir)
-		>>
-		lift (f tempDir)
+		>>=
+		lift . (f tempDir)
 	where
-		prepareFiles :: TestScenario -> Path -> ErrT m ()
+		prepareFiles :: TestScenario -> Path -> ErrT m Settings
 		prepareFiles TestScenario{..} tempDir =
 			do
 				Dir.writeDir tempDir origin
 				Dir.writeDir tempDir this
 				errT . liftIO . runExceptT $ Persistence.createConfig $ tempDir </> configDir
+				let settings =
+					Settings{
+						thisPath = tempDir </> Dir.dir_name this,
+						serverPath = tempDir </> Dir.dir_name origin,
+						thisIP = Nothing, serverIP = Nothing
+					}
 				errT . liftIO . runExceptT $
 					forM_ configFiles $ \dest ->
 						let
 							entry =
-								entryFromPathOnServer Settings{
-									thisPath = tempDir </> Dir.dir_name this,
-									serverPath = tempDir </> Dir.dir_name origin,
-									thisIP = Nothing, serverIP = Nothing
-								} $
+								entryFromPathOnServer settings $
 								Dir.pos_getFullPath $
 								--(Dir.pos_up $ tempDir) $
 								--(Dir.pos_up $ Dir.dir_name origin) $
@@ -145,6 +147,7 @@ withTestScenario scenario f =
 							do
 								--liftIO $ putStrLn $ "testScenario entry: " ++ show entry
 								Persistence.writeHiddenFile (tempDir </> configDir) $ entry
+				return settings
 
 distinct [] = True
 distinct (x:xs) = ((/=x) `all` xs) && distinct xs

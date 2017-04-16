@@ -4,9 +4,18 @@ module Data.Entry(
 	Entry(..),
 	entry_pathOnThis,
 
+	EntrySavedInfo(..),
+
+	entry_toSavedInfo, entry_fromSavedInfo,
+
 	ValidEntry(..),
 	entry_isValid,
+
+	ValidEntrySavedInfo(..),
+	entrySavedInfo_isValid,
 ) where
+
+import Data.Settings
 
 import qualified System.FilePath as Path
 import Data.Yaml as Yaml
@@ -25,6 +34,12 @@ type Path = Path.FilePath
  	entry_thisPath </> entry_pathOnThis
 -}
 
+data EntrySavedInfo
+	= EntrySavedInfo {
+		entrySavedInfo_pathOnServer :: Path
+	}
+	deriving( Show, Eq, Ord, Read, Generic )
+
 data Entry
 	= Entry {
 		entry_pathOnServer :: Path,
@@ -34,6 +49,15 @@ data Entry
 		entry_thisPath :: Path
 	}
 	deriving( Show, Eq, Ord, Read, Generic )
+
+entry_toSavedInfo = EntrySavedInfo . entry_pathOnServer
+
+entry_fromSavedInfo settings EntrySavedInfo{..} =
+	Entry{
+		entry_pathOnServer = entrySavedInfo_pathOnServer,
+		entry_serverPath = serverPath settings,
+		entry_thisPath = thisPath settings
+	}
 
 entry_pathOnThis :: Entry -> Path
 entry_pathOnThis =
@@ -45,10 +69,10 @@ entry_toText = entry_path
 -}
 
 
-instance Yaml.FromJSON Entry where
+instance Yaml.FromJSON EntrySavedInfo where
 	parseJSON = Yaml.genericParseJSON encodingOptions
 
-instance Yaml.ToJSON Entry where
+instance Yaml.ToJSON EntrySavedInfo where
 	toJSON = Yaml.genericToJSON encodingOptions
 	--toEncoding = Yaml.genericToEncoding encodingOptions
 
@@ -58,6 +82,13 @@ encodingOptions = Yaml.defaultOptions{
 }
 
 -- for testing:
+
+entrySavedInfo_isValid EntrySavedInfo{..} =
+	and $
+	[ Path.isRelative entrySavedInfo_pathOnServer
+	, not $ Path.hasTrailingPathSeparator entrySavedInfo_pathOnServer
+	, Path.isValid entrySavedInfo_pathOnServer
+	]
 
 entry_isValid Entry{..} =
 	and $
@@ -70,6 +101,17 @@ entry_isValid Entry{..} =
 	, Path.isValid entry_serverPath
 	]
 
+newtype ValidEntrySavedInfo = ValidEntrySavedInfo{ getValidEntrySavedInfo :: EntrySavedInfo }
+	deriving( Show, Eq, Read, Generic )
+
+instance Arbitrary ValidEntrySavedInfo where
+	arbitrary =
+		ValidEntrySavedInfo <$>
+		arbitrary `suchThat` entrySavedInfo_isValid
+
+instance Arbitrary EntrySavedInfo where
+	arbitrary =
+		EntrySavedInfo <$> arbitrary
 newtype ValidEntry = ValidEntry{ getValidEntry :: Entry }
 	deriving( Show, Eq, Read, Generic )
 
