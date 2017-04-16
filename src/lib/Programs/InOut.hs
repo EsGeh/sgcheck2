@@ -35,7 +35,7 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
 			["-azv", "-u"]
-			++ if copyFlags_simulate then ["-n"] else []
+			++ (if copyFlags_simulate then ["-n"] else [])
 			++ copyFlags_addRSyncOpts
 		memorizeFile = fs_memorizeFile fs
 		writeLog = fs_writeLogFile fs
@@ -72,7 +72,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
 			["-azv", "-u", "--delete"]
-			++ if copyFlags_simulate then ["-n"] else []
+			++ (if copyFlags_simulate then ["-n"] else [])
 			++ copyFlags_addRSyncOpts
 		lookupFile = fs_lookupFile fs
 		writeLog = fs_writeLogFile fs

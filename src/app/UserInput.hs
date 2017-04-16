@@ -17,9 +17,13 @@ import Data.Foldable( asum )
 import Data.Monoid
 import Data.List
 
+import System.FilePath as Path( (</>) )
+import qualified System.FilePath as Path
+
 --import qualified Paths_sgcheck2 as SGCHECK
 
 import qualified Text.PrettyPrint.ANSI.Leijen as Doc
+import Data.List.Split
 
 
 prgName :: String
@@ -34,7 +38,7 @@ configDir_filename =
 
 defConfigDir :: IO Path
 defConfigDir =
-	liftM2 (++)
+	liftM2 (</>)
 		getHomeDirectory
 		(return configDir_filename)
 
@@ -92,7 +96,7 @@ copyParamsParser fileInfo=
 				<$> switch (long "simulate" <> short 's' <> help "do not execute on filesystem")
 				<*> switch (long "print-command" <> short 'p' <> help "print rsync command being run")
 				<*> switch (long "print-rsync-output" <> short 'r' <> help "print rsync output")
-				<*> option auto (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
+				<*> option (splitOn " " <$> Opt.str) (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
 		)
 
 listParamsParser :: Opt.Parser ListParams

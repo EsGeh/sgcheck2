@@ -35,6 +35,7 @@ executable sgcheck2
     , filepath
     , optparse-applicative
     , ansi-wl-pprint
+    , split
   default-language:    Haskell2010
   ghc-options: -Wall -fno-warn-tabs
 

@@ -23,9 +23,13 @@ loadSettings configDir =
 	let
 		path = configDir </> configPath
 	in
-		(ExceptT . return . settings_fromStr =<<) $
-		catchExceptions_IO (L.concat $ ["error loading config from \"", path, "\"" ]) $
-			readFile $ path
+	do
+		settings <- (ExceptT . return . settings_fromStr =<<) $
+			catchExceptions_IO (L.concat $ ["error loading config from \"", path, "\"" ]) $
+				readFile $ path
+		when (not $ settings_isValid settings) $
+			throwE $ concat ["Invalid settings file \"", path ,"\". Please fix manually!"]
+		return settings
 
 {- |lookup config dir, store settings
 -}
@@ -46,3 +50,8 @@ createConfig configDir =
 				createDirectoryIfMissing True $
 					configDir </> logDir
 		storeSettings configDir defSettings
+		liftIO $ putStrLn $
+			concat $
+			[ "Created config at \"", configDir, "\"", ". "
+			, "Please enter the necessary information to the config file manually!"
+			]
