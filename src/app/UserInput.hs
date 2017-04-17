@@ -74,6 +74,7 @@ commandParser =
 		(command "out" $ Opt.info ((CmdOut <$> outParamsParser)) out_info)
 		<> (command "in" $ Opt.info ((CmdIn <$> inParamsParser)) in_info)
 		<> (command "list" $ Opt.info ((CmdListFiles <$> listParamsParser)) list_info)
+		<> (command "add" $ Opt.info (CmdAdd <$> addParamsParser) add_info)
 		<> (command "showConfig" $ Opt.info (pure CmdShowConfig) showConfig_info)
 		<> (command "writeConfig" $ Opt.info (pure CmdWriteConfig) writeConfig_info)
 
@@ -98,6 +99,10 @@ copyParamsParser fileInfo=
 				<*> switch (long "print-rsync-output" <> short 'r' <> help "print rsync output")
 				<*> option (splitOn " " <$> Opt.str) (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
 		)
+
+addParamsParser :: Opt.Parser Path
+addParamsParser =
+	Opt.strArgument $ Opt.metavar "FILE_AT_ORIGIN" <> help "a file relative to the serverPath"
 
 listParamsParser :: Opt.Parser ListParams
 listParamsParser =
@@ -155,6 +160,11 @@ in_info :: Opt.InfoMod a
 in_info =
 	Opt.fullDesc
 	<> Opt.progDesc "check in a memorized file (or directory)"
+
+add_info :: Opt.InfoMod a
+add_info =
+	Opt.fullDesc
+	<> Opt.progDesc "add a file or directory to the list of managed files"
 
 list_info :: Opt.InfoMod a
 list_info =

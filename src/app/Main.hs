@@ -39,6 +39,8 @@ execProgram userInput =
 							Programs.checkOut file settings fileSys
 						CmdIn file ->
 							Programs.checkIn file settings fileSys
+						CmdAdd file ->
+							Programs.add file settings fileSys
 						CmdListFiles listArgs ->
 							Programs.list settings listArgs
 								(Persistence.fs_list fileSys)

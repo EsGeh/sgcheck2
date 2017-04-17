@@ -29,6 +29,7 @@ data Command
 	= CmdOut CopyCommandParams
 	| CmdIn CopyCommandParams
 	| CmdListFiles ListParams
+	| CmdAdd Path
 	| CmdShowConfig
 	| CmdWriteConfig
 	deriving( Show )
@@ -37,6 +38,7 @@ data CommandType
 	= Out
 	| In
 	| ListFiles
+	| Add
 	| ShowConfig
 	| WriteConfig
 	deriving( Eq, Ord, Enum, Bounded, Show )
@@ -49,6 +51,7 @@ instance HasCommmandType Command where
 		case cmd of
 			CmdOut _ -> Out
 			CmdIn _ -> In
+			CmdAdd _ -> Add
 			CmdListFiles _ -> ListFiles
 			CmdShowConfig -> ShowConfig
 			CmdWriteConfig -> WriteConfig

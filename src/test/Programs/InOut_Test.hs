@@ -37,18 +37,26 @@ prop_checkOut_copiesFilesCorrectly =
 		handleIOErrs $
 		withTestScenario scenario $ \tempDir settings ->
 		do
+			let fileToCopy_filename =
+				Dir.pos_getFilename fileToCopy
 			--run $ putStrLn $ "scenario : " ++ show scenario
 			--run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <-
-				fmap (either error id) $
+				(either fail return =<<) $
 				runExceptT $ Dir.findPosInDir (Dir.pos_up (Dir.dir_name origin) fileToCopy) origin
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
+
+			-- path does not exist locally:
+			pre $
+				not $
+					(Dir.dir_name this `Dir.pos_up` [fileToCopy_filename])
+					`Dir.posIsinDir`
+					this
+
 			maybeErr <-
 				simulateCheckOut (testCopyParams $ Dir.pos_getFullPath $ fileToCopy) tempDir scenario settings
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
-			fileToCopy_filename <- handleIOErrs $
-				maybe (throwE "file to copy path is empty") return $ Dir.pos_getFilename fileToCopy
 			copiedDir <- run $
 				Dir.readDir (tempDir </> Dir.dir_name this </> fileToCopy_filename)
 			--run $ putStrLn $ "copiedDir: " ++ show copiedDir
@@ -65,6 +73,14 @@ prop_checkOut_simulateDoesntChangeFilesystem =
 			--run $ putStrLn $ "file : " ++ show fileToCopy
 			(originalDir :: Dir.DirDescr) <- run $ Dir.readDir tempDir
 			--run $ putStrLn $ "originalDir: " ++ show originalDir
+
+			-- path does not exist locally:
+			pre $
+				not $
+					(Dir.dir_name this `Dir.pos_up` [Dir.pos_getFilename fileToCopy])
+					`Dir.posIsinDir`
+					this
+
 			maybeErr <-
 				simulateCheckOut
 					(testCopyParams $ Dir.pos_getFullPath $ fileToCopy){ copyCmd_flags = testCopyFlags{ copyFlags_simulate = True } }
@@ -95,8 +111,7 @@ prop_checkIn_copiesFilesCorrectly =
 				simulateCheckIn (testCopyParams $ Dir.pos_getFullPath $ fileToCopy) tempDir scenario settings
 			run $ maybe (return ()) (putStrLn) $ maybeErr
 			assert $ isNothing maybeErr
-			fileToCopy_filename <- handleIOErrs $
-				maybe (throwE "file to copy path is empty") return $ Dir.pos_getFilename fileToCopy
+			let fileToCopy_filename = Dir.pos_getFilename fileToCopy
 			copiedDir <- run $
 				Dir.readDir (tempDir </> Dir.dir_name origin </> fileToCopy_filename)
 			--run $ putStrLn $ "copiedDir: " ++ show copiedDir

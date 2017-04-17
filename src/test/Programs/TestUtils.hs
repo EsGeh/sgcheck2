@@ -73,8 +73,7 @@ genScenario managedFilesCanBeEmpty =
 		this_nonManagedFiles <- arbitrary
 
 		configDir <-
-			(getValidPath <$> arbitrary)
-			--`suchThat` (\path -> path/=(Dir.dir_name origin) && path/=(Dir.dir_name this_nonManagedFiles))
+			(getValidPath <$> arbitrary) --`suchThat` (\path -> path/=(Dir.dir_name origin) && path/=(Dir.dir_name this_nonManagedFiles))
 
 		(managedFileOrigins :: [Dir.PosInDir]) <-
 			(if not managedFilesCanBeEmpty then (`suchThat` (not . null)) else id) $

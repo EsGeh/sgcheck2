@@ -4,6 +4,7 @@ module TestUtils.Dir(
 	dir_name,
 	dirFile,
 	dirDir,
+	posIsinDir,
 	findPosInDir,
 	insert,
 	dir_subsetOf,
@@ -119,6 +120,12 @@ insert pos dirToInsert =
 
 --type Zipper a = Zipper.TreePos Zipper.Full a
 
+posIsinDir :: PosInDir -> Dir.DirTree a -> Bool
+posIsinDir pos =
+	either (const False) (const True) .
+	runExcept .
+	findPosInDir pos
+
 findPosInDir ::
 	Monad m =>
 	PosInDir -> Dir.DirTree a -> ErrT m (Dir.DirTree a)
@@ -157,7 +164,8 @@ toTree =
 				(Dir.Dir name content)
 				subTrees
 
-pos_getFilename = listToMaybe . reverse
+pos_getFilename =
+	fromMaybe "" . listToMaybe . reverse
 
 pos_getFullPath :: PosInDir -> Path
 pos_getFullPath = foldl (</>) ""
