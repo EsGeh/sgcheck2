@@ -35,6 +35,7 @@ entryFromPathOnServer settings pathRelToOrigin =
 		entry_pathOnServer = pathRelToOrigin
 		entry_serverPath = serverPath settings
 		entry_thisPath = thisPath settings
+		entry_excludePattern = []
 	in Entry{..}
 
 out_copyParams :: [String] -> Entry -> CopyFileParams
@@ -42,9 +43,12 @@ out_copyParams options entry@Entry{..} =
 	let
 		copyParams_cmd =
 			("rsync", rsyncArgs)
-		copyParams_fullCommand = uncurry showCommandForUser copyParams_cmd
+		copyParams_fullCommand =
+			uncurry showCommandForUser copyParams_cmd
 		rsyncArgs =
-			(options ++ [src, rsyncDest])
+			options
+			++ map ("--exclude="++) entry_excludePattern
+			++ [src, rsyncDest]
 		src = entry_serverPath </> entry_pathOnServer
 		rsyncDest = Path.takeDirectory $
 			entry_thisPath </> (entry_pathOnThis entry)
@@ -58,7 +62,9 @@ in_copyParams options entry@Entry{..} =
 			("rsync", rsyncArgs)
 		copyParams_fullCommand = uncurry showCommandForUser copyParams_cmd
 		rsyncArgs =
-			(options ++ [src, rsyncDest])
+			options
+			++ map ("--exclude="++) entry_excludePattern
+			++ [src, rsyncDest]
 		src =
 			entry_thisPath </> (entry_pathOnThis entry)
 		rsyncDest =

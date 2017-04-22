@@ -36,7 +36,8 @@ type Path = Path.FilePath
 
 data EntrySavedInfo
 	= EntrySavedInfo {
-		entrySavedInfo_pathOnServer :: Path
+		entrySavedInfo_pathOnServer :: Path,
+		entrySavedInfo_excludePattern :: [Path]
 	}
 	deriving( Show, Eq, Ord, Read, Generic )
 
@@ -46,17 +47,23 @@ data Entry
 
 		-- mirror the settings for sanity checking:
 		entry_serverPath :: Path,
-		entry_thisPath :: Path
+		entry_thisPath :: Path,
+		entry_excludePattern :: [Path]
 	}
 	deriving( Show, Eq, Ord, Read, Generic )
 
-entry_toSavedInfo = EntrySavedInfo . entry_pathOnServer
+entry_toSavedInfo e =
+	EntrySavedInfo{
+		entrySavedInfo_pathOnServer = entry_pathOnServer e,
+		entrySavedInfo_excludePattern = entry_excludePattern e
+	}
 
 entry_fromSavedInfo settings EntrySavedInfo{..} =
 	Entry{
 		entry_pathOnServer = entrySavedInfo_pathOnServer,
 		entry_serverPath = serverPath settings,
-		entry_thisPath = thisPath settings
+		entry_thisPath = thisPath settings,
+		entry_excludePattern = entrySavedInfo_excludePattern
 	}
 
 entry_pathOnThis :: Entry -> Path
@@ -70,7 +77,9 @@ entry_toText = entry_path
 
 
 instance Yaml.FromJSON EntrySavedInfo where
-	parseJSON = Yaml.genericParseJSON encodingOptions
+	parseJSON = Yaml.genericParseJSON encodingOptions{
+			Yaml.omitNothingFields = True
+		}
 
 instance Yaml.ToJSON EntrySavedInfo where
 	toJSON = Yaml.genericToJSON encodingOptions
@@ -111,7 +120,7 @@ instance Arbitrary ValidEntrySavedInfo where
 
 instance Arbitrary EntrySavedInfo where
 	arbitrary =
-		EntrySavedInfo <$> arbitrary
+		EntrySavedInfo <$> arbitrary <*> pure []
 newtype ValidEntry = ValidEntry{ getValidEntry :: Entry }
 	deriving( Show, Eq, Read, Generic )
 
@@ -126,4 +135,5 @@ instance Arbitrary Entry where
 			entry_serverPath <- arbitrary
 			entry_thisPath <- arbitrary
 			entry_pathOnServer <- arbitrary
+			let entry_excludePattern = []
 			return Entry{..}

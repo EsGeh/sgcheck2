@@ -11,7 +11,7 @@ import qualified Programs.InOut.Utils as Utils
 import Utils
 
 import Control.Monad.Trans.Maybe
-import Control.Monad.Error
+--import Control.Monad.Error
 import Data.Char
 import Data.List
 import Prelude as P hiding( FilePath )
@@ -99,39 +99,47 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 		memorizeFile = fs_memorizeFile fs
 		lookupFile = fs_lookupFile fs
 		writeLog = fs_writeLogFile fs
+		{-
 		entry :: Entry
 		entry = Utils.entryFromPathOnServer settings copyCmd_file
-		copyParams :: Utils.CopyFileParams
-		copyParams = Utils.out_copyParams options entry
-		sanityCheck =
+		-}
+		-- |sanity check, and create entry:
+		getEntry =
+			let defEntry = Utils.entryFromPathOnServer settings copyCmd_file
+			in
 			do
 				maybeExistingEntry <-
-					fmap Just (lookupFile $ entry_pathOnThis entry)
+					fmap Just (lookupFile $ entry_pathOnThis defEntry)
 					`catchE` (const $ return Nothing)
 				case maybeExistingEntry of
 					Nothing ->
 						do
-							assertExistsLocal False entry
-							assertExistsOnServer entry
+							assertExistsLocal False defEntry
+							assertExistsOnServer defEntry
+							return $ defEntry
 					Just existingEntry ->
 						do
 							when (
-									entry_pathOnThis existingEntry == entry_pathOnThis entry
-									&& entry_pathOnServer existingEntry /= entry_pathOnServer entry
+									entry_pathOnThis existingEntry == entry_pathOnThis defEntry
+									&& entry_pathOnServer existingEntry /= entry_pathOnServer defEntry
 								) $
 								throwE $ concat $ ["entry \"", entry_pathOnThis existingEntry, "\" already exists, and pointing to \"", entry_serverPath existingEntry </> entry_pathOnServer existingEntry, "\"" ]
-							assertExistsLocal True entry
-							assertExistsOnServer entry
+							assertExistsLocal True existingEntry
+							assertExistsOnServer existingEntry
+							return $ existingEntry
 	in
 		do
 			{-
 			liftIO $ putStrLn $ "entry: " ++ show entry
 			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
 			-}
-			lift $ sanityCheck
+			entry <- lift $ getEntry
+			let
+				copyParams :: Utils.CopyFileParams
+				copyParams = Utils.out_copyParams options entry
 			when copyFlags_printCommand $
 				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
-			stdOut <- execCopyCmd copyParams (writeLog entry)
+			stdOut <- lift $ execCopyCmd copyParams (writeLog entry)
 			when (not $ copyFlags_simulate) $
 				do
 					lift $ writeLog
@@ -142,16 +150,6 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			when copyFlags_printRSyncOut $
 				liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
-				{-
-					let localPath = entry_pathOnThis entry
-					existsLocal <- liftIO $ SysDir.doesPathExist $ localPath
-					when existsLocal $
-						throwE $ concat $ [ "file or directory \"", localPath, "\" exists locally! (use \"add\", to add it to the list of managed files...)"]
-					let remotePath = entry_pathOnServer entry
-					existsRemote <- liftIO $ SysDir.doesPathExist $ remotePath
-					when (not $ existsRemote) $
-						throwE $ concat $ [ "file or directory \"", remotePath, "\" does not exist on the server!" ]
-				-}
 
 {- |
 synchronize local -> server
@@ -190,7 +188,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			liftIO $ putStrLn $ "entry: " ++ show entry
 			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
 			-}
-			stdOut <- execCopyCmd copyParams (writeLog entry)
+			stdOut <- lift $ execCopyCmd copyParams (writeLog entry)
 			when (not $ copyFlags_simulate) $
 				do
 					lift $ writeLog
@@ -201,14 +199,17 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 				liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
 
+execCopyCmd ::
+	MonadIO m =>
+	Utils.CopyFileParams -> (String -> String -> ErrT m ()) -> ErrT m String
 execCopyCmd copyParams writeLog =
 		(runExceptT $ Utils.execCmd $ copyParams) >>= \case
 			Left (_, stdOut, stdErr) ->
 				do
-					lift $ writeLog
+					writeLog
 						(Utils.copyParams_fullCommand copyParams)
 						(unlines [stdOut, "errors:", stdErr])
-					lift $ throwE $ unlines $
+					throwE $ unlines $
 						[ "rsync failed!"
 						, "rsync stdout:", stdOut
 						, "rsync stderr:", stdErr
