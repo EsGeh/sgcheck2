@@ -13,6 +13,7 @@ import Utils
 import Control.Monad.Trans.Maybe
 import Control.Monad.Error
 import Data.Char
+import Data.List
 import Prelude as P hiding( FilePath )
 
 import System.FilePath as Path( (</>) {- (<.>) -})
@@ -228,14 +229,14 @@ list settings listParams listEntries =
 			in
 				do
 					--liftIO $ putStrLn $ "rendering: " ++ show entry
-					inRes <-
-						catch $ Utils.execCmd $ inParams
-					outRes <-
-						catch $ Utils.execCmd $ outParams
-					let renderRes =
-						P.concat $
-						map (renderEntryOutput entry inRes outRes) $ listParams
-					when (not $ null renderRes) $
+					let
+						inRes = catch $ Utils.execCmd $ inParams
+						outRes = catch $ Utils.execCmd $ outParams
+					renderRes <-
+						fmap concat $
+						mapM (renderEntryOutput entry inRes outRes) $
+						listParams
+					unless (null renderRes) $
 						liftIO $ putStrLn renderRes
 	where
 		catch x =
@@ -246,35 +247,32 @@ list settings listParams listEntries =
 						, "rsync stderr:", stdErr
 						]
 
-renderEntryOutput :: Entry -> String -> String -> Output -> String
+renderEntryOutput :: Entry -> ErrT IO String -> ErrT IO String -> Output -> ErrT IO String
 renderEntryOutput entry@Entry{..} inRes outRes x =
-	let
-		trimmedInRes = trim isSpace inRes
-		trimmedOutRes = trim isSpace outRes
-	in
-		case x of
-			SimpleOutput info -> simpleInfo info
-			IfChangedOnThis l ->
+	case x of
+		SimpleOutput info -> return $ simpleInfo info
+		IfChangedOnThis l ->
+			fmap (trim isSpace) inRes >>= \trimmedInRes ->
+				return $
 				if trimmedInRes == "" then ""
 				else changeInfo trimmedInRes l
-			IfChangedOnServer l ->
+		IfChangedOnServer l ->
+			fmap (trim isSpace) outRes >>= \trimmedOutRes ->
+				return $
 				if trimmedOutRes == "" then ""
 				else changeInfo trimmedOutRes l
-		where
-			simpleInfo info=
-				case info of
-					Str s -> s
-					Path -> entry_pathOnThis entry
-					ThisPath -> entry_thisPath </> entry_pathOnThis entry
-					ServerPath -> entry_serverPath </> entry_pathOnServer
-			changeInfo rsyncRet =
-				concatMap (either simpleInfo (flip rsyncInfo rsyncRet))
-			rsyncInfo f =
-				let
-					concStr = rsyncF_interperseLines f
-				in
-					foldl1 (\a b-> a ++ concStr ++ b)
-					. lines
+	where
+		simpleInfo info=
+			case info of
+				Str s -> s
+				Path -> entry_pathOnThis entry
+				ThisPath -> entry_thisPath </> entry_pathOnThis entry
+				ServerPath -> entry_serverPath </> entry_pathOnServer
+		changeInfo rsyncRet =
+			concatMap $ either simpleInfo $ flip rsyncInfo rsyncRet
+		rsyncInfo f =
+			intercalate (rsyncF_interperseLines f) .
+			lines
 
 assertExistsLocal ::
 	MonadIO m =>

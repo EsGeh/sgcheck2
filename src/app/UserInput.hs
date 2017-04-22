@@ -71,9 +71,9 @@ inputParser =
 commandParser :: Opt.Parser Command
 commandParser =
 	Opt.hsubparser $
-		(command "out" $ Opt.info ((CmdOut <$> outParamsParser)) out_info)
-		<> (command "in" $ Opt.info ((CmdIn <$> inParamsParser)) in_info)
-		<> (command "list" $ Opt.info ((CmdListFiles <$> listParamsParser)) list_info)
+		(command "out" $ Opt.info (CmdOut <$> outParamsParser) out_info)
+		<> (command "in" $ Opt.info (CmdIn <$> inParamsParser) in_info)
+		<> (command "list" $ Opt.info (CmdListFiles <$> listParamsParser) list_info)
 		<> (command "add" $ Opt.info (CmdAdd <$> addParamsParser) add_info)
 		<> (command "showConfig" $ Opt.info (pure CmdShowConfig) showConfig_info)
 		<> (command "writeConfig" $ Opt.info (pure CmdWriteConfig) writeConfig_info)
@@ -106,9 +106,32 @@ addParamsParser =
 
 listParamsParser :: Opt.Parser ListParams
 listParamsParser =
-	fmap (\l -> if null l then defListParamsMarkChanged else l) $
-	many $
-		(SimpleOutput <$> simpleOutputInfoParser)
+	fmap (\l -> if null l then [SimpleOutput Path] else l) $ --default
+		Opt.flag [] defListParamsMarkChanged (long "mark-changed" <> short 'm' <> help "marks files which have been changed locally or on server")
+		<|>
+		many singleOutputParser
+
+singleOutputParser :: Opt.Parser Output
+singleOutputParser =
+	hsubparser $
+		(Opt.command "simple" $ Opt.info (SimpleOutput <$> simpleOutputInfoParser) (Opt.briefDesc))
+		<>
+		(Opt.command "if_changed_this" $ Opt.info (
+				fmap IfChangedOnThis $
+				many $ changedOutputParser
+			) (Opt.briefDesc)
+		)
+		<>
+		(Opt.command "if_changed_server" $ Opt.info (
+				fmap IfChangedOnServer $
+				many $ changedOutputParser
+			) (Opt.briefDesc)
+		)
+
+changedOutputParser =
+	(Left <$> simpleOutputInfoParser)
+	<|>
+	(Right <$> Opt.flag' defRSyncOutF (long "output-rsync" <> short 'r'))
 
 	{-
 	[ Option ['m'] ["mark-changed"] (ReqArg (\str _ -> return $ uncurry defListParamsMarkChangedWithMarker $ markInfoFromStr str) "locally,onServer") "mark files which have changed locally/on the server"
@@ -192,7 +215,7 @@ configHelp =
 	, "  * use the default path \"" ++ configDir ++ "\""
 	, ""
 	, "if the directory doesn't exist, you will get an error. to create the config dir, and write some default config file, use"
-	, "\t" ++  cmdLineInput (concat $ [prgName, " ", cmdType_toStr WriteConfig] )
+	, "\t" ++  cmdLineInput (concat $ [prgName, " ", "writeConfig"] )
 	]
 
 cmdLineInput :: String -> String

@@ -56,6 +56,7 @@ instance HasCommmandType Command where
 			CmdShowConfig -> ShowConfig
 			CmdWriteConfig -> WriteConfig
 
+{-
 cmdType_fromStr :: String -> Maybe CommandType
 cmdType_fromStr str =
 	lookup str cmdList
@@ -73,3 +74,4 @@ cmdList =
 	, ("showConfig", ShowConfig)
 	, ("writeConfig", WriteConfig)
 	]
+-}

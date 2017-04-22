@@ -10,6 +10,7 @@ module Programs.InOut.Params(
 	Output(..),
 	SimpleOutputInfo(..),
 	RSyncOutFormat(..),
+	defRSyncOutF
 ) where
 
 import qualified System.FilePath as Path
