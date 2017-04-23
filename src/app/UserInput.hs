@@ -97,7 +97,7 @@ copyParamsParser fileInfo=
 				<$> switch (long "simulate" <> short 's' <> help "do not execute on filesystem")
 				<*> switch (long "print-command" <> short 'p' <> help "print rsync command being run")
 				<*> switch (long "print-rsync-output" <> short 'r' <> help "print rsync output")
-				<*> option (splitOn " " <$> Opt.str) (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options to be passed to the copy command (rsync)")
+				<*> option (splitOn "," <$> Opt.str) (long "rsync-opts" <> value [] <> metavar "RSYNC_OPTS" <> help "additional options (comma separated) to be passed to the copy command (rsync)")
 		)
 
 addParamsParser :: Opt.Parser Path
