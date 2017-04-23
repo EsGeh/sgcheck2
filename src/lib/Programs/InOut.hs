@@ -93,7 +93,8 @@ checkOut :: CopyCommandParams -> Settings -> FileSys -> MaybeT (ErrT IO) Setting
 checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
-			["-azv", "-u"]
+			rsyncOptions settings
+			++ rsyncOptions_out settings
 			++ (if copyFlags_simulate then ["-n"] else [])
 			++ copyFlags_addRSyncOpts
 		memorizeFile = fs_memorizeFile fs
@@ -162,10 +163,11 @@ assert $ entry with same local path exists
 -}
 
 checkIn :: CopyCommandParams -> Settings -> FileSys -> MaybeT (ErrT IO) Settings
-checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } _ fs =
+checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 	let
 		options =
-			["-azv", "-u", "--delete"]
+			rsyncOptions settings
+			++ rsyncOptions_in settings
 			++ (if copyFlags_simulate then ["-n"] else [])
 			++ copyFlags_addRSyncOpts
 		lookupFile = fs_lookupFile fs
@@ -202,16 +204,15 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } _ fs =
 			MaybeT $ return Nothing
 
 list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
-list _ listParams listEntries =
+list Settings{..} listParams listEntries =
 	(>> (MaybeT $ return Nothing)) $
 	lift $ listEntries >>= \entries ->
 		forM entries $ \entry ->
 			let
-				flags = ["-az", "-i", "-n", "-u"]
 				outParams =
-					Utils.out_copyParams flags entry
+					Utils.out_copyParams (rsyncOptions++rsyncOptions_out) entry
 				inParams =
-					Utils.in_copyParams flags entry
+					Utils.in_copyParams (rsyncOptions++rsyncOptions_in) entry
 			in
 				do
 					--liftIO $ putStrLn $ "rendering: " ++ show entry

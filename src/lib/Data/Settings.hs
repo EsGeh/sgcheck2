@@ -29,10 +29,15 @@ type Path = Path.FilePath
 
 -- settings
 data Settings = Settings {
+	{-
 	serverIP :: Maybe IP,
 	thisIP :: Maybe IP,
+	-}
 	serverPath :: Path,
-	thisPath :: Path
+	thisPath :: Path,
+	rsyncOptions :: [Path],
+	rsyncOptions_out :: [Path],
+	rsyncOptions_in :: [Path]
 }
 	deriving( Show, Eq, Ord, Generic )
 
@@ -49,10 +54,15 @@ ip_toStr = fromIP
 
 defSettings :: Settings
 defSettings = Settings {
+{-
 	serverIP = Nothing,
 	thisIP = Nothing,
+-}
 	serverPath =  "",
-	thisPath =  ""
+	thisPath =  "",
+	rsyncOptions = ["-a", "-z", "-v", "-u"],
+	rsyncOptions_out = [],
+	rsyncOptions_in = ["--delete"]
 }
 
 settings_toStr :: Settings -> String
@@ -93,8 +103,9 @@ instance Arbitrary Settings where
 		Settings
 			<$> arbitrary
 			<*> arbitrary
-			<*> arbitrary
-			<*> arbitrary
+			<*> pure (rsyncOptions defSettings)
+			<*> pure (rsyncOptions_out defSettings)
+			<*> pure (rsyncOptions_in defSettings)
 
 instance Arbitrary IP where
 	arbitrary =

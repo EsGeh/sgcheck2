@@ -128,10 +128,10 @@ withTestScenario scenario f =
 				Dir.writeDir tempDir this
 				errT . liftIO . runExceptT $ Persistence.createConfig $ tempDir </> configDir
 				let settings =
-					Settings{
+					defSettings{
 						thisPath = tempDir </> Dir.dir_name this,
-						serverPath = tempDir </> Dir.dir_name origin,
-						thisIP = Nothing, serverIP = Nothing
+						serverPath = tempDir </> Dir.dir_name origin
+						--thisIP = Nothing, serverIP = Nothing
 					}
 				errT . liftIO . runExceptT $
 					forM_ configFiles $ \dest ->
