@@ -8,7 +8,6 @@ import Data.Settings
 import Persistence.Global
 import Utils
 
-import System.IO.Error
 import System.Directory
 import Data.List as L
 --

@@ -11,7 +11,6 @@ import Persistence.Global
 import Utils
 
 import System.Directory
-import System.IO.Error
 
 import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path

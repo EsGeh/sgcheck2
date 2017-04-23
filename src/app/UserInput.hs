@@ -18,7 +18,7 @@ import Data.Monoid
 import Data.List
 
 import System.FilePath as Path( (</>) )
-import qualified System.FilePath as Path
+--import qualified System.FilePath as Path
 
 --import qualified Paths_sgcheck2 as SGCHECK
 
@@ -128,6 +128,7 @@ singleOutputParser =
 			) (Opt.briefDesc)
 		)
 
+changedOutputParser :: Opt.Parser (Either SimpleOutputInfo RSyncOutFormat)
 changedOutputParser =
 	(Left <$> simpleOutputInfoParser)
 	<|>

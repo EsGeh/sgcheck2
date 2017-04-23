@@ -4,15 +4,13 @@ module Persistence.Global(
 	logDir,
 ) where
 
-import Utils
 --import System.FilePath as Path( (</>), (<.>) )
 import qualified System.FilePath as Path
---import Utils.Path
 
 type Path = Path.FilePath
 
 
-configPath, hiddenFileEnding :: String
+configPath, hiddenFileEnding, logDir :: Path
 
 configPath = "config"
 hiddenFileEnding = "sgcheck2"

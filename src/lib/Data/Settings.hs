@@ -16,7 +16,6 @@ import Utils()
 import qualified System.FilePath as Path
 
 import Data.Yaml as Yaml
---import Data.Aeson as Yaml
 import Data.Aeson.Types as Yaml
 import GHC.Generics
 import qualified Data.ByteString.Char8 as BS
@@ -66,6 +65,7 @@ settings_fromStr =
 
 -- for testing:
 
+settings_isValid :: Settings -> Bool
 settings_isValid Settings{..} =
 	and $
 	[ not $ Path.hasTrailingPathSeparator serverPath

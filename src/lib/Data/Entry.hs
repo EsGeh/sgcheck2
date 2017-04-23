@@ -56,6 +56,7 @@ data Entry
 	}
 	deriving( Show, Eq, Ord, Read, Generic )
 
+entry_toSavedInfo :: Entry -> EntrySavedInfo
 entry_toSavedInfo e =
 	EntrySavedInfo{
 		entrySavedInfo_pathOnServer = entry_pathOnServer e,
@@ -64,6 +65,7 @@ entry_toSavedInfo e =
 		entrySavedInfo_execBeforeIn = entry_execBeforeIn e
 	}
 
+entry_fromSavedInfo :: Settings -> EntrySavedInfo -> Entry
 entry_fromSavedInfo settings EntrySavedInfo{..} =
 	Entry{
 		entry_pathOnServer = entrySavedInfo_pathOnServer,
@@ -99,6 +101,7 @@ encodingOptions = Yaml.defaultOptions{
 
 -- for testing:
 
+entrySavedInfo_isValid :: EntrySavedInfo -> Bool
 entrySavedInfo_isValid EntrySavedInfo{..} =
 	and $
 	[ Path.isRelative entrySavedInfo_pathOnServer
@@ -106,6 +109,7 @@ entrySavedInfo_isValid EntrySavedInfo{..} =
 	, Path.isValid entrySavedInfo_pathOnServer
 	]
 
+entry_isValid :: Entry -> Bool
 entry_isValid Entry{..} =
 	and $
 	[ Path.isRelative entry_pathOnServer

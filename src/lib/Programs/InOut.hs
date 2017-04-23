@@ -48,7 +48,7 @@ add :: Path -> Settings -> FileSys -> MaybeT (ErrT IO) Settings
 add path settings fs =
 	let
 		memorizeFile = fs_memorizeFile fs
-		writeLog = fs_writeLogFile fs
+		--writeLog = fs_writeLogFile fs
 		lookupFile = fs_lookupFile fs
 		entry :: Entry
 		entry = Utils.entryFromPathOnServer settings path
@@ -162,7 +162,7 @@ assert $ entry with same local path exists
 -}
 
 checkIn :: CopyCommandParams -> Settings -> FileSys -> MaybeT (ErrT IO) Settings
-checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
+checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } _ fs =
 	let
 		options =
 			["-azv", "-u", "--delete"]
@@ -202,7 +202,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			MaybeT $ return Nothing
 
 list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
-list settings listParams listEntries =
+list _ listParams listEntries =
 	(>> (MaybeT $ return Nothing)) $
 	lift $ listEntries >>= \entries ->
 		forM entries $ \entry ->
@@ -308,6 +308,9 @@ assertExistsLocalWithHint hint does entry =
 				then " " ++ hint
 				else ""
 
+assertExistsOnServer ::
+	MonadIO m =>
+	Entry -> ErrT m ()
 assertExistsOnServer entry =
 	do
 		let remotePath =
