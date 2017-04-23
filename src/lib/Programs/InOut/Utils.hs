@@ -1,10 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 module Programs.InOut.Utils(
 	CopyFileParams(..),
 	--ioSanityCheckParams,
 	out_copyParams,
 	in_copyParams,
 	execCmd,
+	execCmd',
 	entryFromPathOnServer,
 ) where
 
@@ -36,6 +38,8 @@ entryFromPathOnServer settings pathRelToOrigin =
 		entry_serverPath = serverPath settings
 		entry_thisPath = thisPath settings
 		entry_excludePattern = []
+		entry_execBeforeOut = Nothing
+		entry_execBeforeIn = Nothing
 	in Entry{..}
 
 out_copyParams :: [String] -> Entry -> CopyFileParams
@@ -73,8 +77,25 @@ in_copyParams options entry@Entry{..} =
 	in
 		CopyFileParams{..}
 
-execCmd :: MonadIO m => CopyFileParams -> ExceptT (ExitCode,String,String) m String
-execCmd CopyFileParams{..} =
+execCmd ::
+	MonadIO m =>
+	CopyFileParams -> (String -> String -> ErrT m ()) -> ErrT m String
+execCmd copyParams writeLog =
+		(runExceptT $ execCmd' $ copyParams) >>= \case
+			Left (_, stdOut, stdErr) ->
+				do
+					writeLog
+						(copyParams_fullCommand copyParams)
+						(unlines [stdOut, "errors:", stdErr])
+					throwE $ unlines $
+						[ "rsync failed!"
+						, "rsync stdout:", stdOut
+						, "rsync stderr:", stdErr
+						]
+			Right stdOut -> return stdOut
+
+execCmd' :: MonadIO m => CopyFileParams -> ExceptT (ExitCode,String,String) m String
+execCmd' CopyFileParams{..} =
 	do
 		(exitCode, stdOut, stdErr) <- liftIO $ readProcessWithExitCode (fst copyParams_cmd) (snd copyParams_cmd) ""
 		case exitCode of

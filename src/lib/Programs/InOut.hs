@@ -119,6 +119,7 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 							return $ defEntry
 					Just existingEntry ->
 						do
+							execPrepareCmd copyFlags_printCommand (writeLog existingEntry) $ entry_execBeforeOut existingEntry
 							when (
 									entry_pathOnThis existingEntry == entry_pathOnThis defEntry
 									&& entry_pathOnServer existingEntry /= entry_pathOnServer defEntry
@@ -139,7 +140,7 @@ checkOut CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 				copyParams = Utils.out_copyParams options entry
 			when copyFlags_printCommand $
 				liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand copyParams
-			stdOut <- lift $ execCopyCmd copyParams (writeLog entry)
+			stdOut <- lift $ Utils.execCmd copyParams (writeLog entry)
 			when (not $ copyFlags_simulate) $
 				do
 					lift $ writeLog
@@ -178,6 +179,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			(entry :: Entry) <-
 				lift $ lookupFile $
 				copyCmd_file
+			lift $ execPrepareCmd copyFlags_printCommand (writeLog entry) $ entry_execBeforeIn entry
 			lift $ sanityCheck entry
 			let
 				copyParams :: Utils.CopyFileParams
@@ -188,7 +190,7 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			liftIO $ putStrLn $ "entry: " ++ show entry
 			liftIO $ putStrLn $ "copyParams: " ++ show copyParams
 			-}
-			stdOut <- lift $ execCopyCmd copyParams (writeLog entry)
+			stdOut <- lift $ Utils.execCmd copyParams (writeLog entry)
 			when (not $ copyFlags_simulate) $
 				do
 					lift $ writeLog
@@ -198,23 +200,6 @@ checkIn CopyCommandParams{ copyCmd_flags=CopyFlags{..},.. } settings fs =
 			when copyFlags_printRSyncOut $
 				liftIO $ putStrLn $ unlines ["rsync output:", stdOut]
 			MaybeT $ return Nothing
-
-execCopyCmd ::
-	MonadIO m =>
-	Utils.CopyFileParams -> (String -> String -> ErrT m ()) -> ErrT m String
-execCopyCmd copyParams writeLog =
-		(runExceptT $ Utils.execCmd $ copyParams) >>= \case
-			Left (_, stdOut, stdErr) ->
-				do
-					writeLog
-						(Utils.copyParams_fullCommand copyParams)
-						(unlines [stdOut, "errors:", stdErr])
-					throwE $ unlines $
-						[ "rsync failed!"
-						, "rsync stdout:", stdOut
-						, "rsync stderr:", stdErr
-						]
-			Right stdOut -> return stdOut
 
 list :: Settings -> ListParams -> ListEntries -> MaybeT (ErrT IO) Settings
 list settings listParams listEntries =
@@ -231,8 +216,14 @@ list settings listParams listEntries =
 				do
 					--liftIO $ putStrLn $ "rendering: " ++ show entry
 					let
-						inRes = catch $ Utils.execCmd $ inParams
-						outRes = catch $ Utils.execCmd $ outParams
+						inRes =
+							do
+								execPrepareCmd False (\_ _ -> return ()) $ entry_execBeforeIn entry
+								catch $ Utils.execCmd' $ inParams
+						outRes =
+							do
+								execPrepareCmd False (\_ _ -> return ()) $ entry_execBeforeOut entry
+								catch $ Utils.execCmd' $ outParams
 					renderRes <-
 						fmap concat $
 						mapM (renderEntryOutput entry inRes outRes) $
@@ -274,6 +265,25 @@ renderEntryOutput entry@Entry{..} inRes outRes x =
 		rsyncInfo f =
 			intercalate (rsyncF_interperseLines f) .
 			lines
+
+execPrepareCmd ::
+	MonadIO m =>
+	Bool -> (String -> String -> ErrT m ()) -> Maybe Path -> ErrT m ()
+execPrepareCmd doPrint writeLog str =
+	case
+			str >>= \cmd ->
+			do
+				let copyParams_fullCommand = cmd
+				copyParams_cmd <- uncons $ words cmd
+				return $ Utils.CopyFileParams{..}
+		of
+		Just params -> 
+			do
+				when doPrint $
+					liftIO $ putStrLn $ "executing: " ++ Utils.copyParams_fullCommand params
+				stdOut <- Utils.execCmd params writeLog
+				unless (null $ stdOut) $ liftIO $ putStrLn $ unlines ["output:", stdOut]
+		Nothing -> return ()
 
 assertExistsLocal ::
 	MonadIO m =>
